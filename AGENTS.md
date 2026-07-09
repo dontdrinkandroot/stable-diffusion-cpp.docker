@@ -4,27 +4,34 @@
 
 Docker image for running **FLUX.2-klein-9B** with **stable-diffusion.cpp** (CUDA variant).
 Uses the pre-built upstream CUDA image and adds an entrypoint that downloads model weights
-on first startup using **rclone** for fast parallel chunked downloads.
+on startup using **aria2c** with resume support.
 
-## Model Download (rclone)
+## Instructions
 
-Models are downloaded via `rclone copyurl --urls` (CSV batch mode):
+* **Get back to the user:** When seemingly stuck, when an approach does not work as expected, or when new decisions have to be taken, the LLM Agent MUST stop and get back to the user with the situation and options instead of continuing with assumptions. Do not silently pivot to a different approach.
 
-- **`--multi-thread-streams`** (default `4`, configurable via `RCLONE_STREAMS`): splits each
-  large file into N parallel HTTP Range-request chunks. HuggingFace CDN supports Range.
-- **`--transfers 3`**: downloads all 3 model files concurrently.
-- **`--no-clobber`**: skips files already present (idempotent restarts).
-- **`--header-download "Authorization: Bearer $HF_TOKEN"`**: auth for gated repos (sent on
-  all requests; non-gated repos accept it without error).
-- rclone is installed from the official precompiled binary
-  (`https://downloads.rclone.org/rclone-current-linux-amd64.zip`), not from apt.
+## Model Download (aria2c)
+
+Models are downloaded via `aria2c` with an input file listing all 3 URLs:
+
+- **`-c` (continue)**: resumes partial downloads via a `.aria2` control file + HTTP Range
+  requests. An interrupted run continues where it left off on next start.
+- **`-x16 -s16`**: 16 parallel connections per file (chunked download).
+- **`-j3`**: downloads all 3 model files concurrently.
+- **`--header="Authorization: Bearer $HF_TOKEN"`**: auth header sent on all requests
+  (required for the gated FLUX.2-dev VAE repo).
+- **`-i` (input file)**: each URL is paired with an explicit `out=` filename so the
+  output name is controlled regardless of CDN redirects.
+- **Retry loop**: the download is wrapped in a retry loop (default 3 attempts, configurable
+  via `MAX_ATTEMPTS`). On failure, aria2c is re-invoked; `-c` ensures no wasted bandwidth.
+- aria2 is installed via `apt-get` (Debian package `aria2`).
 
 ## Project Structure
 
 ```
 .
-├── Dockerfile          # FROM upstream CUDA image; installs rclone + entrypoint
-├── entrypoint.sh       # Downloads models via rclone, then execs sd-server
+├── Dockerfile          # FROM upstream CUDA image; installs aria2 + entrypoint
+├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models volume, HF_TOKEN
 ├── .dockerignore
 └── AGENTS.md
@@ -34,10 +41,10 @@ Models are downloaded via `rclone copyurl --urls` (CSV batch mode):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_TOKEN` | (empty) | HuggingFace token; required for gated FLUX.2-dev VAE repo |
+| `HF_TOKEN` | (empty) | HuggingFace token; **required** (gated FLUX.2-dev VAE repo) |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
 | `PORT` | `1234` | sd-server HTTP port |
-| `RCLONE_STREAMS` | `4` | Parallel chunked download streams per file |
+| `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
 
 ## Model Files
 
@@ -96,12 +103,13 @@ Key flags used in this project:
 --steps 4                  # Inference steps (4 for distilled klein, 20 for base)
 ```
 
-### rclone
+### aria2c
 
-- Install (precompiled binary): https://rclone.org/install/
-- `copyurl` command docs: https://rclone.org/commands/rclone_copyurl/
-- Global flags (`--multi-thread-streams`, `--transfers`, `--header-download`, etc.): https://rclone.org/flags/
-- Downloads page: https://rclone.org/downloads/
+- Install: `apt-get install aria2` (Debian package `aria2`)
+- aria2 docs: https://aria2.github.io/manual/en/html/aria2c.html
+- Key flags: `-c` (continue), `-x` (max connections per server), `-s` (split), `-j` (concurrent downloads),
+  `-i` (input file), `--header`, `-d` (dir), `-k` (min split size)
+- Downloads page: https://aria2.github.io/
 
 ## Self-Update Instruction
 
@@ -115,3 +123,4 @@ This guidelines file is a living document and MUST be actively maintained by the
     * Make sure the most important features are clearly documented.
     * Keep the project structure up to date so that the most important files and directories are visible at a glance.
 * **Proactivity:** Do not wait for explicit instructions to update these guidelines if you identify a discrepancy between the guidelines and the actual codebase.
+

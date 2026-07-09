@@ -3,59 +3,55 @@ set -e
 
 MODEL_DIR="${MODEL_DIR:-/models}"
 PORT="${PORT:-1234}"
-RCLONE_STREAMS="${RCLONE_STREAMS:-4}"
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
+
+if [ -z "$HF_TOKEN" ]; then
+    echo "ERROR: HF_TOKEN is required."
+    echo "Please set HF_TOKEN after accepting the licenses at:"
+    echo "  https://huggingface.co/black-forest-labs/FLUX.2-dev"
+    exit 1
+fi
 
 DIFFUSION_MODEL="$MODEL_DIR/flux-2-klein-9b-Q6_K.gguf"
 VAE="$MODEL_DIR/ae.safetensors"
 LLM="$MODEL_DIR/Qwen3-8B-Q6_K.gguf"
 
-RCLONE_OPTS=(
-    --multi-thread-streams "$RCLONE_STREAMS"
-    --retries 5
-    --low-level-retries 10
-    --no-clobber
-    --transfers 3
-    -P
-)
+INPUT_FILE="/tmp/aria2-input.txt"
+cat > "$INPUT_FILE" <<EOF
+https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
+  out=flux-2-klein-9b-Q6_K.gguf
+https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
+  out=ae.safetensors
+https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
+  out=Qwen3-8B-Q6_K.gguf
+EOF
 
-if [ -n "$HF_TOKEN" ]; then
-    RCLONE_OPTS+=(--header-download "Authorization: Bearer $HF_TOKEN")
-fi
-
-echo "=== Downloading models ==="
-
-URLS_CSV="/tmp/urls.csv"
-: > "$URLS_CSV"
-
-if [ ! -f "$DIFFUSION_MODEL" ]; then
-    echo "https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf,flux-2-klein-9b-Q6_K.gguf" >> "$URLS_CSV"
-else
-    echo "Already exists: $DIFFUSION_MODEL"
-fi
-
-if [ ! -f "$VAE" ]; then
-    if [ -z "$HF_TOKEN" ]; then
-        echo "ERROR: $VAE not found. black-forest-labs/FLUX.2-dev is a gated repo."
-        echo "Please set HF_TOKEN after accepting the license at:"
-        echo "  https://huggingface.co/black-forest-labs/FLUX.2-dev"
-        exit 1
+attempt=1
+until [ $attempt -gt "$MAX_ATTEMPTS" ]; do
+    echo "=== Downloading models (attempt $attempt/$MAX_ATTEMPTS) ==="
+    if aria2c \
+        -c \
+        -x16 \
+        -s16 \
+        -j3 \
+        -k 1M \
+        --header="Authorization: Bearer $HF_TOKEN" \
+        -d "$MODEL_DIR" \
+        -i "$INPUT_FILE"; then
+        echo "=== Download complete ==="
+        break
+    else
+        echo "=== Download attempt $attempt failed ==="
+        attempt=$((attempt + 1))
+        if [ $attempt -gt "$MAX_ATTEMPTS" ]; then
+            echo "ERROR: Download failed after $MAX_ATTEMPTS attempts."
+            rm -f "$INPUT_FILE"
+            exit 1
+        fi
     fi
-    echo "https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors,ae.safetensors" >> "$URLS_CSV"
-else
-    echo "Already exists: $VAE"
-fi
+done
 
-if [ ! -f "$LLM" ]; then
-    echo "https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf,Qwen3-8B-Q6_K.gguf" >> "$URLS_CSV"
-else
-    echo "Already exists: $LLM"
-fi
-
-if [ -s "$URLS_CSV" ]; then
-    rclone copyurl "${RCLONE_OPTS[@]}" --urls "$URLS_CSV" "$MODEL_DIR"
-fi
-
-rm -f "$URLS_CSV"
+rm -f "$INPUT_FILE"
 
 echo "=== Starting sd-server ==="
 
