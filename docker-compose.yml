@@ -1,0 +1,20 @@
+services:
+  flux-klein-9b:
+    build: .
+    image: ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest
+    ports:
+      - "1234:1234"
+    volumes:
+      - models:/models
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  models:
