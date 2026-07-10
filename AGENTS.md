@@ -30,6 +30,9 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 
 ```
 .
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml  # CI: build & push image to GHCR
 ├── Dockerfile          # FROM upstream CUDA image; installs aria2 + entrypoint
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models volume, HF_TOKEN
@@ -37,6 +40,36 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 │   └── vastai.md       # Guide for running on vast.ai GPU marketplace
 ├── .dockerignore
 └── AGENTS.md
+```
+
+## CI/CD (GitHub Actions)
+
+The `.github/workflows/docker-publish.yml` workflow builds and pushes the
+image to the GitHub Container Registry (GHCR).
+
+- **Trigger:** push to `main` (when `Dockerfile`, `entrypoint.sh`, or the
+  workflow itself changes), plus manual `workflow_dispatch`.
+- **Registry:** `ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker`
+- **Tags produced:** `latest` and `sha-<short>` (e.g. `sha-ea0fba2`).
+- **Platform:** `linux/amd64` only (upstream CUDA base is amd64; all target
+  hosts are x86_64 NVIDIA GPUs).
+- **Auth:** uses the auto-provisioned `GITHUB_TOKEN` with `packages: write`.
+- **No GPU needed for build** — the Dockerfile only installs `aria2` and copies
+  the entrypoint; the CUDA runtime comes from the upstream base image.
+
+### One-time: make the GHCR package public
+
+After the first workflow run, the package defaults to **private**. Since Vast.ai
+and anonymous pulls need access, flip it to public:
+
+1. Go to `https://github.com/users/philipsorst/packages/container/sdcpp-flux-klein-9b.docker`
+2. **Package settings** → **Danger Zone** → **Change visibility** → **Public**
+
+Alternatively use the CLI:
+
+```bash
+gh api --method PATCH /user/packages/container/sdcpp-flux-klein-9b.docker/visibility \
+  -f visibility=public
 ```
 
 ## Environment Variables

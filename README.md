@@ -75,7 +75,6 @@ a fresh download.
 | `HF_TOKEN` | (empty) | HuggingFace token; required for the gated VAE repo |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
 | `PORT` | `1234` | sd-server HTTP port |
-| `RCLONE_STREAMS` | `4` | Parallel chunked download streams per file |
 
 ## Using the pre-built GHCR image
 
