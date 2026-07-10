@@ -51,3 +51,19 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  cleanup:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Prune old image versions (keep 5 newest)
+        uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: user
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: sdcpp-flux-klein-9b.docker
+          cut-off: 0s
+          keep-n-most-recent: 5
+          dry-run: false

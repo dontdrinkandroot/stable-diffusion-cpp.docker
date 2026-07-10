@@ -57,6 +57,15 @@ image to the GitHub Container Registry (GHCR).
 - **No GPU needed for build** — the Dockerfile only installs `aria2` and copies
   the entrypoint; the CUDA runtime comes from the upstream base image.
 
+### Image retention (automatic cleanup)
+
+After each successful build, a `cleanup` job runs
+`snok/container-retention-policy@v3.1.0` to prune old GHCR image versions,
+keeping only the **5 newest** tagged versions (`cut-off: 0s` +
+`keep-n-most-recent: 5`). This prevents the registry from accumulating stale
+`sha-<short>` versions over time. Deleted versions remain restorable for 30
+days via GitHub's grace period.
+
 ### One-time: make the GHCR package public
 
 After the first workflow run, the package defaults to **private**. Since Vast.ai
@@ -71,6 +80,18 @@ Alternatively use the CLI:
 gh api --method PATCH /user/packages/container/sdcpp-flux-klein-9b.docker/visibility \
   -f visibility=public
 ```
+
+### One-time: grant the repository Admin role on the package
+
+The cleanup job uses the auto-provisioned `GITHUB_TOKEN` to delete old image
+versions. For this to work, the repository must have the **Admin** role on the
+GHCR package (write permission alone is not sufficient for deletion):
+
+1. Go to the package page → **Package settings** → **Manage Actions access**
+2. Add the repository `philipsorst/sdcpp-flux-klein-9b.docker`
+3. Set its role to **Admin**
+
+This step can only be done after the first build creates the package.
 
 ## Environment Variables
 
