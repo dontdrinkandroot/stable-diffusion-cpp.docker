@@ -55,11 +55,17 @@ rm -f "$INPUT_FILE"
 
 echo "=== Starting sd-server ==="
 
+cd "$MODEL_DIR"
+
 exec /sd-server \
     --diffusion-model "$DIFFUSION_MODEL" \
     --vae "$VAE" \
     --llm "$LLM" \
+    --cfg-scale 1.0 \
+    --steps 4 \
+    --listen-ip 0.0.0.0 \
     --listen-port "$PORT" \
     --diffusion-fa \
     --offload-to-cpu \
+    --disable-auto-resize-ref-image \
     "$@"
