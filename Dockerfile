@@ -4,6 +4,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends aria2 ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
+# Vast.ai installs openssh-server in its overlay and sets StrictModes no via sed,
+# but Ubuntu 24.04 ships "#StrictModes yes" (commented) so the sed is a no-op and
+# StrictModes defaults to yes, causing "bad ownership or modes for authorized_keys".
+# This drop-in is loaded via the Include directive in sshd_config and survives
+# the openssh-server install in vast.ai's overlay.
+RUN mkdir -p /etc/ssh/sshd_config.d && \
+    echo 'StrictModes no' > /etc/ssh/sshd_config.d/99-strictmodes-no.conf && \
+    mkdir -p /root/.ssh && chmod 700 /root/.ssh
+
 RUN mkdir -p /loras
 
 COPY entrypoint.sh /entrypoint.sh

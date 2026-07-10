@@ -609,6 +609,29 @@ To get public port access, you need a host with open ports
 (`direct_port_count >= 1`) and the `--direct` flag — see
 [Option 2: Direct SSH](#option-2-direct-ssh-lower-latency-public-port-access).
 
+### SSH: Permission denied (publickey) / bad ownership or modes
+
+If SSH fails with `Permission denied (publickey)` and the instance logs show:
+
+```
+Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys
+```
+
+This is caused by a Vast.ai provisioning bug with Ubuntu 24.04's `sshd_config`.
+Vast.ai sets `StrictModes no` via `sed`, but the default config has
+`#StrictModes yes` (commented), so the sed is a no-op and StrictModes stays at
+its default of `yes`. The image already includes a drop-in fix
+(`/etc/ssh/sshd_config.d/99-strictmodes-no.conf`) that forces `StrictModes no`.
+If you still see this error, make sure you're using an up-to-date image.
+
+Other possible causes of `Permission denied (publickey)`:
+
+- **SSH key not registered** – register your public key at
+  [cloud.vast.ai/manage-keys/](https://cloud.vast.ai/manage-keys/) before
+  creating the instance. Keys only apply to new instances.
+- **Timing** – wait a few seconds after the instance reaches `running` status
+  before connecting (the vast.ai banner suggests this).
+
 ---
 
 ## Reference

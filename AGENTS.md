@@ -33,7 +33,7 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 ├── .github/
 │   └── workflows/
 │       └── docker-publish.yml  # CI: build & push image to GHCR
-├── Dockerfile          # FROM upstream CUDA image; installs aria2, curl + entrypoint; HEALTHCHECK
+├── Dockerfile          # FROM upstream CUDA image; installs aria2, curl, sshd StrictModes fix + entrypoint; HEALTHCHECK
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models + loras volumes, HF_TOKEN
 ├── docs/
@@ -130,6 +130,32 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=1800s --retries=3 \
   (models already in the volume), the server is ready much faster.
 - **`curl`** is installed alongside `aria2` in the Dockerfile.
 - The healthcheck respects the `PORT` env var (default `1234`).
+
+## SSH StrictModes Fix (for vast.ai)
+
+When using `--ssh` mode on vast.ai, the platform builds an overlay image that
+installs `openssh-server` and configures sshd. Vast.ai's provisioning includes:
+
+```
+sed -i "s/StrictModes yes/StrictModes no/g" /etc/ssh/sshd_config
+```
+
+However, Ubuntu 24.04's default `sshd_config` ships with `#StrictModes yes`
+(commented out). The sed only changes it to `#StrictModes no` — **still
+commented** — so `StrictModes` falls back to its default of `yes`. This causes
+sshd to reject `/root/.ssh/authorized_keys` with:
+`Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys`.
+
+**Fix:** The Dockerfile creates a drop-in config at
+`/etc/ssh/sshd_config.d/99-strictmodes-no.conf` with `StrictModes no`. This
+file:
+- Is loaded via the `Include /etc/ssh/sshd_config.d/*.conf` directive in
+  Ubuntu 24.04's `sshd_config`
+- Is not a conffile, so it survives vast.ai's `openssh-server` installation
+- Pre-creates `/root/.ssh` with `700` permissions as belt-and-suspenders
+
+This was verified by simulating the full vast.ai overlay build process and
+confirming `sshd -T` reports `strictmodes no`.
 
 ## Reference
 
