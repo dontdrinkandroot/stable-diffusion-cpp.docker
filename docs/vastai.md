@@ -311,29 +311,72 @@ runs the model download + `exec /sd-server`.
 
 ### Prerequisites
 
-1. **Register an SSH public key** on your Vast.ai account (before creating the
-   instance — keys only apply to **new** instances):
+Register an SSH public key on your Vast.ai account **before creating the
+instance** — keys only apply to new instances, not existing ones:
 
-   ```bash
-   vastai create ssh-key ~/.ssh/id_ed25519.pub
-   ```
+```bash
+vastai create ssh-key ~/.ssh/id_ed25519.pub
+```
 
-   If you don't have a key pair yet, the CLI can generate one:
+If you don't have a key pair yet, the CLI can generate one:
 
-   ```bash
-   vastai create ssh-key
-   ```
+```bash
+vastai create ssh-key
+```
 
-2. **Search for offers with at least one direct port** (needed for `--direct`
-   SSH, which has lower latency than proxy SSH):
+### Proxy vs. Direct SSH — and why it matters for port access
 
-   ```bash
-   vastai search offers \
-     'gpu_name in ["RTX 3090","RTX 4090"] num_gpus=1 gpu_ram>=20 verified=true direct_port_count>=1 rentable=true' \
-     -o 'dlperf_usd-'
-   ```
+Vast.ai offers two SSH connection modes, and they differ in a critical way that
+affects **all** published ports (not just SSH):
 
-### Create the instance
+| | Proxy SSH (`--ssh`) | Direct SSH (`--ssh --direct`) |
+|---|---|---|
+| Works on all hosts? | Yes | No — requires `direct_port_count >= 1` |
+| SSH connection | Routed through Vast.ai proxy | Direct TCP to host |
+| `-p` port mappings reachable from internet? | **No** — host firewall blocks them | **Yes** |
+| Latency | Higher | Lower |
+| How to access sd-server | SSH port forwarding (`-L`) | Direct URL or port forwarding |
+
+> **Key takeaway:** In proxy mode, even though Vast.ai shows port mappings like
+> `PUBLIC_IP:52336 -> 1234/tcp`, those ports are **blocked by the host firewall**
+> and cannot be reached from the internet. Only SSH works (via the proxy). To
+> access the sd-server, you must use SSH port forwarding.
+
+### Option 1: Proxy SSH (works on all hosts)
+
+This is the default and works everywhere. No special offer filtering needed.
+
+```bash
+vastai create instance OFFER_ID \
+  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --disk 40 \
+  --ssh \
+  --env '-e HF_TOKEN=hf_your_token_here' \
+  --onstart-cmd '/entrypoint.sh'
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--ssh` | Proxy SSH access (works on all hosts) |
+| `--onstart-cmd '/entrypoint.sh'` | Run the entrypoint alongside sshd |
+| `-e HF_TOKEN=...` | HuggingFace token (required for VAE download) |
+
+> **No `-p 1234:1234`** — in proxy mode the port mapping is unreachable from the
+> internet anyway. Use SSH port forwarding instead (below).  
+> **No `-p 22:22`** — Vast.ai manages the SSH port mapping itself when using
+> `--ssh`. Adding `-p 22:22` conflicts with the host's own sshd on port 22.
+
+### Option 2: Direct SSH (lower latency, public port access)
+
+Requires a host with at least one open port. Filter offers accordingly:
+
+```bash
+vastai search offers \
+  'gpu_name in ["RTX 3090","RTX 4090"] num_gpus=1 gpu_ram>=20 verified=true direct_port_count>=1 rentable=true' \
+  -o 'dlperf_usd-'
+```
+
+Then create with `--direct` and expose port 1234:
 
 ```bash
 vastai create instance OFFER_ID \
@@ -344,14 +387,16 @@ vastai create instance OFFER_ID \
   --onstart-cmd '/entrypoint.sh'
 ```
 
-| Flag | Purpose |
-|------|---------|
-| `--ssh --direct` | Direct SSH access (lower latency than proxy) |
-| `--onstart-cmd '/entrypoint.sh'` | Run the entrypoint alongside sshd |
-| `-e HF_TOKEN=...` | HuggingFace token (required for VAE download) |
-| `-p 1234:1234` | Expose the sd-server HTTP port (optional — see port forwarding below) |
+With direct mode, the sd-server is accessible at `http://PUBLIC_IP:EXTERNAL_PORT`
+(check the **IP Port Info** popup for the mapped external port for 1234). You
+can still use SSH port forwarding if you prefer not to expose the port publicly.
+
+> **Do not add `-p 22:22`** — Vast.ai maps the SSH port automatically even in
+> direct mode. The host's own sshd already binds port 22.
 
 ### Connect via SSH
+
+Get the connection details:
 
 ```bash
 vastai ssh-url INSTANCE_ID
@@ -362,16 +407,25 @@ You'll land in a **tmux session** by default (`Ctrl+B` then `C` for a new
 window, `Ctrl+B` then `N` to cycle). Disable tmux with
 `touch ~/.no_auto_tmux` inside the instance.
 
-### Accessing the sd-server via SSH port forwarding (recommended)
+### Accessing the sd-server via SSH port forwarding
 
-Instead of exposing port 1234 publicly (`-p 1234:1234`), you can tunnel it
-through SSH — more secure, no public exposure:
+Tunnel the sd-server port through the SSH connection — this works in **both**
+proxy and direct mode, and avoids exposing the server publicly:
 
 ```bash
 ssh -p SSH_PORT root@SSH_HOST -L 1234:localhost:1234
 ```
 
-Then access the server at `http://localhost:1234` on your local machine.
+Then open `http://localhost:1234` in your browser on your local machine.
+
+> **How `-L` works:** `-L LOCAL_PORT:REMOTE_HOST:REMOTE_PORT` forwards your
+> local `LOCAL_PORT` to `REMOTE_HOST:REMOTE_PORT` **inside the container**.
+> The remote port must match the port sd-server listens on (1234, set by
+> `--listen-port` in the entrypoint). The local port is your choice — e.g.
+> `-L 8080:localhost:1234` would let you browse `http://localhost:8080` locally.
+> A common mistake is `-L 8080:localhost:8080` (forwarding to remote port 8080,
+> where nothing is listening) — this produces
+> `connect_to localhost port 8080: failed`.
 
 ### Behavior differences vs. Entrypoint mode
 
@@ -389,9 +443,10 @@ without the instance being torn down.
 ### Web Console
 
 In the web console template, select **SSH** launch mode and set the
-**On-start command** to `/entrypoint.sh`. Add port `22` (for SSH) and `1234`
-(for the server) under **Ports**. Make sure your SSH key is registered under
-[Keys](https://cloud.vast.ai/manage-keys/) before creating the instance.
+**On-start command** to `/entrypoint.sh`. Under **Ports**, add `22` (for SSH)
+and optionally `1234` (only useful if the host supports direct connections —
+otherwise rely on SSH port forwarding). Make sure your SSH key is registered
+under [Keys](https://cloud.vast.ai/manage-keys/) before creating the instance.
 
 ---
 
@@ -536,6 +591,23 @@ RAM. If you still see OOM errors:
 Vast.ai assigns random external ports. Always check the **IP Port Info**
 popup or `vastai show instance` output. The internal port is 1234; the
 external port will be different.
+
+**Using proxy SSH (no `--direct`)?** Published `-p` port mappings are
+**blocked by the host firewall** and unreachable from the internet, even
+though Vast.ai displays them. SSH works because it's routed through Vast.ai's
+proxy, but the sd-server port does not. Use SSH port forwarding instead:
+
+```bash
+ssh -p SSH_PORT root@SSH_HOST -L 1234:localhost:1234
+```
+
+Then access `http://localhost:1234` locally. See the
+[SSH Access](#accessing-the-sd-server-via-ssh-port-forwarding) section for
+details.
+
+To get public port access, you need a host with open ports
+(`direct_port_count >= 1`) and the `--direct` flag — see
+[Option 2: Direct SSH](#option-2-direct-ssh-lower-latency-public-port-access).
 
 ---
 
