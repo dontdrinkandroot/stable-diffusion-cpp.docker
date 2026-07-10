@@ -59,7 +59,7 @@ exec /sd-server \
     --diffusion-model "$DIFFUSION_MODEL" \
     --vae "$VAE" \
     --llm "$LLM" \
-    --port "$PORT" \
+    --listen-port "$PORT" \
     --diffusion-fa \
     --offload-to-cpu \
     "$@"
