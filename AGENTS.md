@@ -33,6 +33,8 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 ├── Dockerfile          # FROM upstream CUDA image; installs aria2 + entrypoint
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models volume, HF_TOKEN
+├── docs/
+│   └── vastai.md       # Guide for running on vast.ai GPU marketplace
 ├── .dockerignore
 └── AGENTS.md
 ```
