@@ -297,6 +297,104 @@ Click the **Open** button on the instance card (mapped to port 1234 via
 
 ---
 
+## SSH Access
+
+By default, the guides above use **Entrypoint** launch mode so the image's
+`/entrypoint.sh` runs directly (downloads models, starts sd-server). Vast.ai's
+`--ssh` launch mode replaces the Docker ENTRYPOINT with an SSH daemon, which
+would prevent the entrypoint from running.
+
+The solution is to use **both** `--ssh` and `--onstart-cmd '/entrypoint.sh'`.
+Vast.ai runs `--onstart-cmd` as a separate process alongside the SSH daemon, so
+both coexist: the SSH daemon keeps the container alive, and the onstart command
+runs the model download + `exec /sd-server`.
+
+### Prerequisites
+
+1. **Register an SSH public key** on your Vast.ai account (before creating the
+   instance — keys only apply to **new** instances):
+
+   ```bash
+   vastai create ssh-key ~/.ssh/id_ed25519.pub
+   ```
+
+   If you don't have a key pair yet, the CLI can generate one:
+
+   ```bash
+   vastai create ssh-key
+   ```
+
+2. **Search for offers with at least one direct port** (needed for `--direct`
+   SSH, which has lower latency than proxy SSH):
+
+   ```bash
+   vastai search offers \
+     'gpu_name in ["RTX 3090","RTX 4090"] num_gpus=1 gpu_ram>=20 verified=true direct_port_count>=1 rentable=true' \
+     -o 'dlperf_usd-'
+   ```
+
+### Create the instance
+
+```bash
+vastai create instance OFFER_ID \
+  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --disk 40 \
+  --ssh --direct \
+  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
+  --onstart-cmd '/entrypoint.sh'
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--ssh --direct` | Direct SSH access (lower latency than proxy) |
+| `--onstart-cmd '/entrypoint.sh'` | Run the entrypoint alongside sshd |
+| `-e HF_TOKEN=...` | HuggingFace token (required for VAE download) |
+| `-p 1234:1234` | Expose the sd-server HTTP port (optional — see port forwarding below) |
+
+### Connect via SSH
+
+```bash
+vastai ssh-url INSTANCE_ID
+# → ssh root@SSH_HOST -p SSH_PORT
+```
+
+You'll land in a **tmux session** by default (`Ctrl+B` then `C` for a new
+window, `Ctrl+B` then `N` to cycle). Disable tmux with
+`touch ~/.no_auto_tmux` inside the instance.
+
+### Accessing the sd-server via SSH port forwarding (recommended)
+
+Instead of exposing port 1234 publicly (`-p 1234:1234`), you can tunnel it
+through SSH — more secure, no public exposure:
+
+```bash
+ssh -p SSH_PORT root@SSH_HOST -L 1234:localhost:1234
+```
+
+Then access the server at `http://localhost:1234` on your local machine.
+
+### Behavior differences vs. Entrypoint mode
+
+| Aspect | Entrypoint mode | SSH mode (`--ssh` + onstart) |
+|--------|-----------------|------------------------------|
+| Container PID 1 | sd-server (via entrypoint) | sshd |
+| If download fails | Container exits | Container stays up (sshd alive) — SSH in to debug |
+| `vastai logs` | Shows entrypoint output | Shows onstart output |
+| Health monitoring | Docker `HEALTHCHECK` | Vast.ai monitors sshd |
+
+The "container stays up on failure" behavior is a **debugging advantage**: if
+the model download fails, you can SSH in and inspect logs / retry manually
+without the instance being torn down.
+
+### Web Console
+
+In the web console template, select **SSH** launch mode and set the
+**On-start command** to `/entrypoint.sh`. Add port `22` (for SSH) and `1234`
+(for the server) under **Ports**. Make sure your SSH key is registered under
+[Keys](https://cloud.vast.ai/manage-keys/) before creating the instance.
+
+---
+
 ## Cost Optimization
 
 | Strategy | Savings | Trade-off |
@@ -388,8 +486,8 @@ Common causes:
   not set. Make sure you pass `-e HF_TOKEN=...` in `--env`.
 - **Entrypoint not running** – ensure you're using Entrypoint launch mode (no
   `--ssh` or `--jupyter` flags). SSH/Jupyter modes replace the image
-  entrypoint. If you need SSH, use `--onstart-cmd '/entrypoint.sh'` to invoke
-  the entrypoint from the onstart script.
+  entrypoint. If you need SSH, see the [SSH Access](#ssh-access) section for
+  the combined `--ssh` + `--onstart-cmd` approach.
 
 ### Model download fails
 
