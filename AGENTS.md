@@ -33,7 +33,7 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 ├── .github/
 │   └── workflows/
 │       └── docker-publish.yml  # CI: build & push image to GHCR
-├── Dockerfile          # FROM upstream CUDA image; installs aria2 + entrypoint
+├── Dockerfile          # FROM upstream CUDA image; installs aria2, curl + entrypoint; HEALTHCHECK
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models volume, HF_TOKEN
 ├── docs/
@@ -112,6 +112,23 @@ This step can only be done after the first build creates the package.
 
 > **Note:** `black-forest-labs/FLUX.2-dev` is a gated repo. Requires accepting the
 > FLUX Non-Commercial License and providing `HF_TOKEN`.
+
+## Healthcheck
+
+The Dockerfile defines a `HEALTHCHECK` that probes the sd-server's
+`/sdcpp/v1/capabilities` endpoint via `curl --fail`:
+
+```
+HEALTHCHECK --interval=30s --timeout=10s --start-period=1800s --retries=3 \
+    CMD curl --fail http://localhost:${PORT:-1234}/sdcpp/v1/capabilities || exit 1
+```
+
+- **`start-period=1800s` (30 min):** gives the container a grace period that
+  covers the one-time ~15 GB model download on first start. During this window,
+  healthcheck failures do not count against the container. On subsequent starts
+  (models already in the volume), the server is ready much faster.
+- **`curl`** is installed alongside `aria2` in the Dockerfile.
+- The healthcheck respects the `PORT` env var (default `1234`).
 
 ## Reference
 
