@@ -464,9 +464,28 @@ Available flags:
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient
+--lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 --cfg-scale 1.0            # CFG scale (1.0 recommended for klein)
 --steps 4                  # Inference steps (4 for distilled klein, 20 for base)
 ```
+
+### LoRA directory
+
+The entrypoint creates `/loras` (configurable via `LORA_DIR`) and passes it to
+`sd-server` via `--lora-model-dir`. Upload LoRA files (`.gguf` / `.safetensors`)
+into this directory at runtime — no restart needed:
+
+```bash
+# Via docker cp
+docker cp my-lora.gguf flux-klein-9b:/loras/
+
+# Via SSH (Vast.ai)
+scp -P SSH_PORT my-lora.gguf root@SSH_HOST:/loras/
+```
+
+The directory is backed by a named volume (`loras`) in `docker-compose.yml` so
+files persist across container restarts. On Vast.ai, link a persistent volume at
+`/loras` to preserve LoRAs across instance recreations.
 
 ---
 

@@ -6,6 +6,7 @@ services:
       - "1234:1234"
     volumes:
       - models:/models
+      - loras:/loras
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
     deploy:
@@ -18,3 +19,4 @@ services:
 
 volumes:
   models:
+  loras:

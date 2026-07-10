@@ -4,6 +4,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends aria2 ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /loras
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

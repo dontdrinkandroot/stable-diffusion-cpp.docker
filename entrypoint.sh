@@ -2,6 +2,7 @@
 set -e
 
 MODEL_DIR="${MODEL_DIR:-/models}"
+LORA_DIR="${LORA_DIR:-/loras}"
 PORT="${PORT:-1234}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 
@@ -53,6 +54,8 @@ done
 
 rm -f "$INPUT_FILE"
 
+mkdir -p "$LORA_DIR"
+
 echo "=== Starting sd-server ==="
 
 cd "$MODEL_DIR"
@@ -67,5 +70,6 @@ exec /sd-server \
     --listen-port "$PORT" \
     --diffusion-fa \
     --offload-to-cpu \
+    --lora-model-dir "$LORA_DIR" \
     --disable-auto-resize-ref-image \
     "$@"

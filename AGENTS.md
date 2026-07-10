@@ -35,7 +35,7 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 │       └── docker-publish.yml  # CI: build & push image to GHCR
 ├── Dockerfile          # FROM upstream CUDA image; installs aria2, curl + entrypoint; HEALTHCHECK
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
-├── docker-compose.yml  # Port 1234, GPU, models volume, HF_TOKEN
+├── docker-compose.yml  # Port 1234, GPU, models + loras volumes, HF_TOKEN
 ├── docs/
 │   └── vastai.md       # Guide for running on vast.ai GPU marketplace
 ├── .dockerignore
@@ -99,6 +99,7 @@ This step can only be done after the first build creates the package.
 |----------|---------|-------------|
 | `HF_TOKEN` | (empty) | HuggingFace token; **required** (gated FLUX.2-dev VAE repo) |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
+| `LORA_DIR` | `/loras` | Directory for LoRA files (mapped to a volume; upload via SSH/`docker cp`) |
 | `PORT` | `1234` | sd-server HTTP port |
 | `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
 
@@ -172,9 +173,28 @@ Key flags used in this project:
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient
+--lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 --cfg-scale 1.0            # CFG scale (1.0 recommended for klein)
 --steps 4                  # Inference steps (4 for distilled klein, 20 for base)
 ```
+
+### LoRA Directory
+
+The entrypoint creates `/loras` (configurable via `LORA_DIR`) and passes it to
+`sd-server` via `--lora-model-dir`. Upload LoRA files (`.gguf` / `.safetensors`)
+into this directory at runtime — no restart needed:
+
+```bash
+# Via docker cp
+docker cp my-lora.gguf flux-klein-9b:/loras/
+
+# Via SSH (Vast.ai)
+scp -P SSH_PORT my-lora.gguf root@SSH_HOST:/loras/
+```
+
+The directory is backed by a named volume (`loras`) in `docker-compose.yml` so
+files persist across container restarts. On Vast.ai, link a persistent volume at
+`/loras` to preserve LoRAs across instance recreations.
 
 ### aria2c
 
