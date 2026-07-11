@@ -106,6 +106,11 @@ This step can only be done after the first build creates the package.
 | `DIFFUSION_MODEL_URL` | *(none — must be set)* | URL for the diffusion model file |
 | `VAE_URL` | *(none — must be set)* | URL for the VAE file |
 | `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
+| `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
+| `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
+| `CFG_SCALE` | *(empty)* | Sets `--cfg-scale` value (classifier-free guidance scale) |
+| `STEPS` | *(empty)* | Sets `--steps` value (number of sampling steps) |
+| `DISABLE_AUTO_RESIZE_REF_IMAGE` | *(empty)* | Set to `1` to enable `--disable-auto-resize-ref-image` |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 
@@ -203,8 +208,11 @@ Key flags used in this project:
 --vae <path>               # VAE file
 --llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
---diffusion-fa             # Flash Attention for diffusion model
---offload-to-cpu           # Offload to CPU when VRAM is insufficient
+--diffusion-fa             # Flash Attention for diffusion model (conditional: DIFFUSION_FA=1)
+--offload-to-cpu           # Offload to CPU when VRAM is insufficient (conditional: OFFLOAD_TO_CPU=1)
+--cfg-scale <value>        # Classifier-free guidance scale (conditional: CFG_SCALE)
+--steps <value>            # Number of sampling steps (conditional: STEPS)
+--disable-auto-resize-ref-image  # Disable auto-resize of reference image (conditional: DISABLE_AUTO_RESIZE_REF_IMAGE=1)
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 ```
 

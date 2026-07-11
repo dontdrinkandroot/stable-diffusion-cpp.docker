@@ -89,13 +89,41 @@ if [ -n "$LLM_URL" ]; then
     LLM_FLAG="--llm $MODEL_DIR/$(basename "$LLM_URL")"
 fi
 
+DIFFUSION_FA_FLAG=""
+if [ "${DIFFUSION_FA}" = "1" ]; then
+    DIFFUSION_FA_FLAG="--diffusion-fa"
+fi
+
+OFFLOAD_TO_CPU_FLAG=""
+if [ "${OFFLOAD_TO_CPU}" = "1" ]; then
+    OFFLOAD_TO_CPU_FLAG="--offload-to-cpu"
+fi
+
+CFG_SCALE_FLAG=""
+if [ -n "$CFG_SCALE" ]; then
+    CFG_SCALE_FLAG="--cfg-scale $CFG_SCALE"
+fi
+
+STEPS_FLAG=""
+if [ -n "$STEPS" ]; then
+    STEPS_FLAG="--steps $STEPS"
+fi
+
+DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG=""
+if [ "${DISABLE_AUTO_RESIZE_REF_IMAGE}" = "1" ]; then
+    DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG="--disable-auto-resize-ref-image"
+fi
+
 exec /sd-server \
     $DIFFUSION_MODEL_FLAG \
     $VAE_FLAG \
     $LLM_FLAG \
     --listen-ip 0.0.0.0 \
     --listen-port "$PORT" \
-    --diffusion-fa \
-    --offload-to-cpu \
+    $DIFFUSION_FA_FLAG \
+    $OFFLOAD_TO_CPU_FLAG \
+    $CFG_SCALE_FLAG \
+    $STEPS_FLAG \
+    $DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG \
     --lora-model-dir "$LORA_DIR" \
     "$@"
