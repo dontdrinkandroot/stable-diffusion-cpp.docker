@@ -2,7 +2,7 @@
 
 Docker image for running **FLUX.2-klein-9B** with
 [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (CUDA variant).
-Models are downloaded automatically on first startup via rclone and cached in a
+Models are downloaded automatically on first startup via aria2c and cached in a
 named volume for subsequent runs.
 
 ## Requirements
@@ -72,9 +72,22 @@ a fresh download.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_TOKEN` | (empty) | HuggingFace token; required for the gated VAE repo |
+| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos (e.g. `black-forest-labs/FLUX.2-dev` VAE). Optional if all URLs point to public repos. |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
 | `PORT` | `1234` | sd-server HTTP port |
+| `DIFFUSION_MODEL_URL` | *(see example below)* | URL for the diffusion model file |
+| `VAE_URL` | *(see example below)* | URL for the VAE file |
+| `LLM_URL` | *(see example below)* | URL for the text encoder / LLM file |
+
+Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
+
+### FLUX.2-klein-9B example URLs
+
+```env
+DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
+VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
+LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
+```
 
 ## Using the pre-built GHCR image
 

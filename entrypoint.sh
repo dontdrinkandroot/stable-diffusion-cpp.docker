@@ -7,24 +7,27 @@ PORT="${PORT:-1234}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 
 if [ -z "$HF_TOKEN" ]; then
-    echo "ERROR: HF_TOKEN is required."
-    echo "Please set HF_TOKEN after accepting the licenses at:"
+    echo "WARNING: HF_TOKEN is not set. Downloads from gated repos will fail."
+    echo "Set HF_TOKEN after accepting the licenses at:"
     echo "  https://huggingface.co/black-forest-labs/FLUX.2-dev"
-    exit 1
 fi
 
-DIFFUSION_MODEL="$MODEL_DIR/flux-2-klein-9b-Q6_K.gguf"
-VAE="$MODEL_DIR/ae.safetensors"
-LLM="$MODEL_DIR/Qwen3-8B-Q6_K.gguf"
+DIFFUSION_MODEL_URL="${DIFFUSION_MODEL_URL:-https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf}"
+VAE_URL="${VAE_URL:-https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors}"
+LLM_URL="${LLM_URL:-https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf}"
+
+DIFFUSION_MODEL="$MODEL_DIR/$(basename "$DIFFUSION_MODEL_URL")"
+VAE="$MODEL_DIR/$(basename "$VAE_URL")"
+LLM="$MODEL_DIR/$(basename "$LLM_URL")"
 
 INPUT_FILE="/tmp/aria2-input.txt"
 cat > "$INPUT_FILE" <<EOF
-https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
-  out=flux-2-klein-9b-Q6_K.gguf
-https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
-  out=ae.safetensors
-https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
-  out=Qwen3-8B-Q6_K.gguf
+${DIFFUSION_MODEL_URL}
+  out=$(basename "$DIFFUSION_MODEL_URL")
+${VAE_URL}
+  out=$(basename "$VAE_URL")
+${LLM_URL}
+  out=$(basename "$LLM_URL")
 EOF
 
 attempt=1

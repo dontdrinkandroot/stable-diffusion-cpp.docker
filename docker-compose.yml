@@ -9,6 +9,9 @@ services:
       - loras:/loras
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
+      # - DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
+      # - VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
+      # - LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
     deploy:
       resources:
         reservations:

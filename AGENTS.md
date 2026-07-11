@@ -97,11 +97,16 @@ This step can only be done after the first build creates the package.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_TOKEN` | (empty) | HuggingFace token; **required** (gated FLUX.2-dev VAE repo) |
+| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos (e.g. FLUX.2-dev VAE). Optional if all URLs point to public repos. |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
 | `LORA_DIR` | `/loras` | Directory for LoRA files (mapped to a volume; upload via SSH/`docker cp`) |
 | `PORT` | `1234` | sd-server HTTP port |
 | `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
+| `DIFFUSION_MODEL_URL` | *(see Model Files)* | URL for the diffusion model file |
+| `VAE_URL` | *(see Model Files)* | URL for the VAE file |
+| `LLM_URL` | *(see Model Files)* | URL for the text encoder / LLM file |
+
+Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 
 ## Model Files
 
