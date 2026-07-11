@@ -19,8 +19,9 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
   requests. An interrupted run continues where it left off on next start.
 - **`-x16 -s16`**: 16 parallel connections per file (chunked download).
 - **`-j3`**: downloads all 3 model files concurrently.
-- **`--header="Authorization: Bearer $HF_TOKEN"`**: auth header sent on all requests
-  (required for the gated FLUX.2-dev VAE repo).
+- **`--header "Authorization: Bearer $HF_TOKEN"`**: auth header sent on all requests
+  (required for the gated FLUX.2-dev VAE repo). Passed as a bash array element so the
+  header value stays a single argument regardless of spaces.
 - **`-i` (input file)**: each URL is paired with an explicit `out=` filename so the
   output name is controlled regardless of CDN redirects.
 - **Retry loop**: the download is wrapped in a retry loop (default 3 attempts, configurable

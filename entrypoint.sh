@@ -16,10 +16,10 @@ if [ -z "$DIFFUSION_MODEL_URL" ] && [ -z "$VAE_URL" ] && [ -z "$LLM_URL" ]; then
     exit 1
 fi
 
+AUTH_HEADERS=()
 if [ -n "$HF_TOKEN" ]; then
-    AUTH_HEADER="--header=\"Authorization: Bearer $HF_TOKEN\""
+    AUTH_HEADERS=(--header "Authorization: Bearer $HF_TOKEN")
 else
-    AUTH_HEADER=""
     echo "WARNING: HF_TOKEN is not set. Downloads from gated repos will fail."
 fi
 
@@ -50,7 +50,7 @@ until [ $attempt -gt "$MAX_ATTEMPTS" ]; do
         -s16 \
         -j3 \
         -k 1M \
-        ${AUTH_HEADER} \
+        "${AUTH_HEADERS[@]}" \
         -d "$MODEL_DIR" \
         -i "$INPUT_FILE"; then
         echo "=== Download complete ==="
