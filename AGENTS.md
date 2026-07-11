@@ -2,9 +2,10 @@
 
 ## Project Overview
 
-Docker image for running **FLUX.2-klein-9B** with **stable-diffusion.cpp** (CUDA variant).
+Generic Docker image for running **stable-diffusion.cpp** (CUDA variant).
 Uses the pre-built upstream CUDA image and adds an entrypoint that downloads model weights
-on startup using **aria2c** with resume support.
+on startup using **aria2c** with resume support. Model URLs are configured via environment
+variables — there are no hardcoded defaults.
 
 ## Instructions
 
@@ -49,7 +50,7 @@ image to the GitHub Container Registry (GHCR).
 
 - **Trigger:** push to `main` (when `Dockerfile`, `entrypoint.sh`, or the
   workflow itself changes), plus manual `workflow_dispatch`.
-- **Registry:** `ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker`
+- **Registry:** `ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker`
 - **Tags produced:** `latest` and `sha-<short>` (e.g. `sha-ea0fba2`).
 - **Platform:** `linux/amd64` only (upstream CUDA base is amd64; all target
   hosts are x86_64 NVIDIA GPUs).
@@ -71,13 +72,13 @@ days via GitHub's grace period.
 After the first workflow run, the package defaults to **private**. Since Vast.ai
 and anonymous pulls need access, flip it to public:
 
-1. Go to `https://github.com/users/philipsorst/packages/container/sdcpp-flux-klein-9b.docker`
+1. Go to `https://github.com/users/dontdrinkandroot/packages/container/stable-diffusion-cpp.docker`
 2. **Package settings** → **Danger Zone** → **Change visibility** → **Public**
 
 Alternatively use the CLI:
 
 ```bash
-gh api --method PATCH /user/packages/container/sdcpp-flux-klein-9b.docker/visibility \
+gh api --method PATCH /user/packages/container/stable-diffusion-cpp.docker/visibility \
   -f visibility=public
 ```
 
@@ -88,7 +89,7 @@ versions. For this to work, the repository must have the **Admin** role on the
 GHCR package (write permission alone is not sufficient for deletion):
 
 1. Go to the package page → **Package settings** → **Manage Actions access**
-2. Add the repository `philipsorst/sdcpp-flux-klein-9b.docker`
+2. Add the repository `dontdrinkandroot/stable-diffusion-cpp.docker`
 3. Set its role to **Admin**
 
 This step can only be done after the first build creates the package.
@@ -97,18 +98,18 @@ This step can only be done after the first build creates the package.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos (e.g. FLUX.2-dev VAE). Optional if all URLs point to public repos. |
+| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos. Optional if all URLs point to public repos. |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
 | `LORA_DIR` | `/loras` | Directory for LoRA files (mapped to a volume; upload via SSH/`docker cp`) |
 | `PORT` | `1234` | sd-server HTTP port |
 | `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
-| `DIFFUSION_MODEL_URL` | *(see Model Files)* | URL for the diffusion model file |
-| `VAE_URL` | *(see Model Files)* | URL for the VAE file |
-| `LLM_URL` | *(see Model Files)* | URL for the text encoder / LLM file |
+| `DIFFUSION_MODEL_URL` | *(none — must be set)* | URL for the diffusion model file |
+| `VAE_URL` | *(none — must be set)* | URL for the VAE file |
+| `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 
-## Model Files
+## Model Files (Example: FLUX.2-klein-9B)
 
 | Model | Repo | File | Size |
 |-------|------|------|------|
@@ -198,15 +199,13 @@ confirming `sshd -T` reports `strictmodes no`.
 Key flags used in this project:
 
 ```
---diffusion-model <path>   # FLUX.2-klein-9B GGUF file
---vae <path>               # ae.safetensors (FLUX.2-dev VAE)
---llm <path>               # Qwen3-8B GGUF (text encoder)
+--diffusion-model <path>   # Diffusion model GGUF file
+--vae <path>               # VAE file
+--llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
---cfg-scale 1.0            # CFG scale (1.0 recommended for klein)
---steps 4                  # Inference steps (4 for distilled klein, 20 for base)
 ```
 
 ### LoRA Directory
@@ -217,7 +216,7 @@ into this directory at runtime — no restart needed:
 
 ```bash
 # Via docker cp
-docker cp my-lora.gguf flux-klein-9b:/loras/
+docker cp my-lora.gguf sd-server:/loras/
 
 # Via SSH (Vast.ai)
 scp -P SSH_PORT my-lora.gguf root@SSH_HOST:/loras/

@@ -1,7 +1,7 @@
 services:
-  flux-klein-9b:
+  sd-server:
     build: .
-    image: ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest
+    image: ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest
     ports:
       - "1234:1234"
     volumes:
@@ -9,9 +9,9 @@ services:
       - loras:/loras
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
-      # - DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
-      # - VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
-      # - LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
+      - DIFFUSION_MODEL_URL=${DIFFUSION_MODEL_URL:-}
+      - VAE_URL=${VAE_URL:-}
+      - LLM_URL=${LLM_URL:-}
     deploy:
       resources:
         reservations:

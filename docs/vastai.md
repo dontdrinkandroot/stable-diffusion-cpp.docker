@@ -1,7 +1,7 @@
 # Running on Vast.ai
 
 [Vast.ai](https://vast.ai) is a marketplace for affordable GPU cloud computing.
-This guide explains how to run the FLUX.2-klein-9B Docker image on a rented
+This guide explains how to run the stable-diffusion.cpp Docker image on a rented
 GPU instance.
 
 ---
@@ -11,10 +11,9 @@ GPU instance.
 1. **Vast.ai account** – Sign up at [cloud.vast.ai](https://cloud.vast.ai), verify
    your email, and add credit (minimum $5).
 
-2. **HuggingFace token** – Required to download the VAE from the gated
-   `black-forest-labs/FLUX.2-dev` repo:
-   1. Accept the FLUX Non-Commercial License at
-      <https://huggingface.co/black-forest-labs/FLUX.2-dev>
+2. **HuggingFace token** (if using gated repos) – Required to download models
+   from gated HuggingFace repositories:
+   1. Accept any required licenses at the gated repository's page
    2. Create a read-access token at
       <https://huggingface.co/settings/tokens>
 
@@ -26,20 +25,22 @@ GPU instance.
 
 ## GPU Requirements
 
+VRAM requirements depend on the models you configure. As a reference point, the
+default FLUX.2-klein-9B configuration uses ~15 GB of model weights:
+
 | Component | Size |
 |-----------|------|
 | Diffusion model (Q6\_K GGUF) | ~7.9 GB |
 | Text encoder – Qwen3-8B (Q6\_K GGUF) | ~6.7 GB |
 | VAE (ae.safetensors) | ~336 MB |
-| **Total model VRAM (if fully loaded)** | **~15 GB** |
 
 Recommended GPUs:
 
-| GPU | VRAM | Fits? |
+| GPU | VRAM | Notes |
 |-----|------|-------|
-| RTX 3090 / 4090 | 24 GB | Yes – full load |
-| RTX 4080 | 16 GB | Yes – tight; `--offload-to-cpu` may be needed |
-| RTX 3080 / 4070 Ti | 12 GB | Partial – requires `--offload-to-cpu` |
+| RTX 3090 / 4090 | 24 GB | Full load for most models |
+| RTX 4080 | 16 GB | Tight for large models; `--offload-to-cpu` may be needed |
+| RTX 3080 / 4070 Ti | 12 GB | Partial; requires `--offload-to-cpu` |
 
 The entrypoint already passes `--offload-to-cpu`, so models that don't fit in
 VRAM spill to system RAM. Make sure the host has enough system RAM (32 GB+ is
@@ -135,17 +136,20 @@ server startup from running.
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
-  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
-  --onstart-cmd '/entrypoint.sh'
+   --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
+   --onstart-cmd '/entrypoint.sh'
 ```
 
 | Flag | Purpose |
 |------|---------|
 | `--image` | The pre-built image from GHCR |
 | `--disk 40` | 40 GB disk (cannot be changed later) |
-| `-e HF_TOKEN=...` | HuggingFace token (required for VAE download) |
+| `-e HF_TOKEN=...` | HuggingFace token (required for gated repos) |
+| `-e DIFFUSION_MODEL_URL=...` | URL for the diffusion model |
+| `-e VAE_URL=...` | URL for the VAE |
+| `-e LLM_URL=...` | URL for the text encoder / LLM |
 | `-p 1234:1234` | Expose the sd-server HTTP port |
 | `--onstart-cmd '/entrypoint.sh'` | Run the entrypoint script on start |
 
@@ -156,10 +160,10 @@ If you push the image to a private registry, add `--login`:
 
 ```bash
 vastai create instance OFFER_ID \
-  --image your-registry.com/sdcpp-flux-klein-9b:latest \
+   --image your-registry.com/stable-diffusion-cpp:latest \
   --login '-u USER -p PASS your-registry.com' \
   --disk 40 \
-  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
+  --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
   --onstart-cmd '/entrypoint.sh'
 ```
 
@@ -169,11 +173,11 @@ vastai create instance OFFER_ID \
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
-  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
-  --onstart-cmd '/entrypoint.sh' \
-  --bid_price 0.20
+   --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
+   --onstart-cmd '/entrypoint.sh' \
+   --bid_price 0.20
 ```
 
 ### 6. Wait for the instance to start
@@ -235,9 +239,9 @@ To make the **Open** button in the Vast.ai console link to the server, set
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
-  --env '-e HF_TOKEN=hf_your_token_here -e OPEN_BUTTON_PORT=1234 -p 1234:1234' \
+  --env '-e HF_TOKEN=hf_your_token_here -e OPEN_BUTTON_PORT=1234 -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
   --onstart-cmd '/entrypoint.sh'
 ```
 
@@ -267,12 +271,12 @@ vastai destroy instance INSTANCE_ID
 
 | Field | Value |
 |-------|-------|
-| **Template Name** | `sdcpp-flux-klein-9b` |
-| **Image Path:Tag** | `ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest` |
+| **Template Name** | `stable-diffusion-cpp` |
+| **Image Path:Tag** | `ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest` |
 | **Launch Mode** | `docker ENTRYPOINT` |
 | **Disk** | 40 GB |
 | **Ports** | `1234` |
-| **Environment variables** | `HF_TOKEN=hf_your_token_here`, `OPEN_BUTTON_PORT=1234` |
+| **Environment variables** | `HF_TOKEN=hf_your_token_here`, `DIFFUSION_MODEL_URL=https://...`, `VAE_URL=https://...`, `LLM_URL=https://...`, `OPEN_BUTTON_PORT=1234` |
 
 > **Important:** Select the **docker ENTRYPOINT** launch mode. Do NOT choose
 > SSH or Jupyter — those modes override the image entrypoint and would
@@ -348,10 +352,10 @@ This is the default and works everywhere. No special offer filtering needed.
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
   --ssh \
-  --env '-e HF_TOKEN=hf_your_token_here' \
+  --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://...' \
   --onstart-cmd '/entrypoint.sh'
 ```
 
@@ -380,10 +384,10 @@ Then create with `--direct` and expose port 1234:
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
   --ssh --direct \
-  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
+  --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
   --onstart-cmd '/entrypoint.sh'
 ```
 
@@ -481,19 +485,17 @@ vastai show volumes
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 10 \
   --link-volume VOLUME_ID \
   --mount-path /models \
-  --env '-e HF_TOKEN=hf_your_token_here -e MODEL_DIR=/models -e OPEN_BUTTON_PORT=1234 -p 1234:1234' \
+  --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
   --onstart-cmd '/entrypoint.sh'
 ```
 
 The entrypoint checks for existing files and skips downloads that are already
 complete. On subsequent instances with the same volume, startup is nearly
 instant.
-
----
 
 ## Passing extra sd-server flags
 
@@ -503,9 +505,9 @@ entrypoint. With the CLI, use `--args`:
 
 ```bash
 vastai create instance OFFER_ID \
-  --image ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest \
+  --image ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest \
   --disk 40 \
-  --env '-e HF_TOKEN=hf_your_token_here -p 1234:1234' \
+  --env '-e HF_TOKEN=hf_your_token_here -e DIFFUSION_MODEL_URL=https://... -e VAE_URL=https://... -e LLM_URL=https://... -p 1234:1234' \
   --entrypoint /entrypoint.sh \
   --args --steps 20 --cfg-scale 1.0
 ```
@@ -513,15 +515,13 @@ vastai create instance OFFER_ID \
 Available flags:
 
 ```
---diffusion-model <path>   # FLUX.2-klein-9B GGUF file
---vae <path>               # ae.safetensors (FLUX.2-dev VAE)
---llm <path>               # Qwen3-8B GGUF (text encoder)
+--diffusion-model <path>   # Diffusion model GGUF file
+--vae <path>               # VAE file
+--llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
---cfg-scale 1.0            # CFG scale (1.0 recommended for klein)
---steps 4                  # Inference steps (4 for distilled klein, 20 for base)
 ```
 
 ### LoRA directory
@@ -532,7 +532,7 @@ into this directory at runtime — no restart needed:
 
 ```bash
 # Via docker cp
-docker cp my-lora.gguf flux-klein-9b:/loras/
+docker cp my-lora.gguf sd-server:/loras/
 
 # Via SSH (Vast.ai)
 scp -P SSH_PORT my-lora.gguf root@SSH_HOST:/loras/
@@ -556,8 +556,9 @@ vastai logs INSTANCE_ID
 
 Common causes:
 
-- **Missing `HF_TOKEN`** – the entrypoint exits immediately if `HF_TOKEN` is
-  not set. Make sure you pass `-e HF_TOKEN=...` in `--env`.
+- **No model URLs configured** – the entrypoint exits immediately if none of
+  `DIFFUSION_MODEL_URL`, `VAE_URL`, or `LLM_URL` are set. Make sure you pass
+  at least one model URL in `--env`.
 - **Entrypoint not running** – ensure you're using Entrypoint launch mode (no
   `--ssh` or `--jupyter` flags). SSH/Jupyter modes replace the image
   entrypoint. If you need SSH, see the [SSH Access](#ssh-access) section for
@@ -568,7 +569,7 @@ Common causes:
 The entrypoint retries up to `MAX_ATTEMPTS` (default 3) times. If it still
 fails, check:
 
-- The `HF_TOKEN` is valid and has accepted the FLUX.2-dev license.
+- The `HF_TOKEN` is valid and has accepted any required licenses for gated repos.
 - The host has sufficient download bandwidth. Check `inet_down` in the offer
   search results.
 

@@ -1,7 +1,6 @@
-# sdcpp-flux-klein-9b.docker
+# stable-diffusion-cpp.docker
 
-Docker image for running **FLUX.2-klein-9B** with
-[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (CUDA variant).
+Generic Docker image for running [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (CUDA variant).
 Models are downloaded automatically on first startup via aria2c and cached in a
 named volume for subsequent runs.
 
@@ -9,18 +8,23 @@ named volume for subsequent runs.
 
 - NVIDIA GPU + NVIDIA drivers
 - Docker with GPU support (Docker 19.03+ with `--gpus` or Docker Compose `deploy.resources`)
-- HuggingFace token with access to the gated
-  [`black-forest-labs/FLUX.2-dev`](https://huggingface.co/black-forest-labs/FLUX.2-dev)
-  repository (needed for the VAE file `ae.safetensors`)
+- HuggingFace token (**required** if any model URL points to a gated repo)
 
-  To get access:
-  1. Create a token at https://huggingface.co/settings/tokens
-  2. Accept the FLUX Non-Commercial License at
-     https://huggingface.co/black-forest-labs/FLUX.2-dev
+## Configuration
 
-## Running locally
+### 1. Set model URLs
 
-### 1. Set your HuggingFace token
+You **must** set the model URLs via environment variables. There are no built-in
+defaults — configure at least one of `DIFFUSION_MODEL_URL`, `VAE_URL`, or
+`LLM_URL` for the models you want to use.
+
+### 2. Set your HuggingFace token
+
+If any of your model URLs point to a gated HuggingFace repository (e.g.
+`black-forest-labs/FLUX.2-dev` for the VAE), you need a token with access:
+
+1. Create a token at https://huggingface.co/settings/tokens
+2. Accept the required license at the gated repository's page
 
 Export it in your shell (or place it in a `.env` file next to
 `docker-compose.yml`):
@@ -38,24 +42,16 @@ HF_TOKEN=hf_your_token_here
 Docker Compose reads `.env` automatically; the compose file references it via
 `${HF_TOKEN:-}` (docker-compose.yml:10).
 
-### 2. Build and start
+### 3. Build and start
 
 ```bash
 docker compose up -d --build
 ```
 
-The first start downloads three model files (~15 GB total) into the `models`
-named volume:
+The first start downloads model files into the `models` named volume.
+Downloads use aria2c with parallel connections and resume support.
 
-| Model | Repo | File | Size |
-|-------|------|------|------|
-| Diffusion model (Q6_K) | `unsloth/FLUX.2-klein-9B-GGUF` | `flux-2-klein-9b-Q6_K.gguf` | 7.87 GB |
-| VAE | `black-forest-labs/FLUX.2-dev` | `ae.safetensors` | 336 MB |
-| Text encoder / LLM (Q6_K) | `unsloth/Qwen3-8B-GGUF` | `Qwen3-8B-Q6_K.gguf` | 6.73 GB |
-
-Downloads use rclone with parallel chunked streams (see `RCLONE_STREAMS` below).
-
-### 3. Use the server
+### 4. Use the server
 
 Once running, the sd-server listens on port `1234`. See the
 [stable-diffusion.cpp API docs](https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/docker.md)
@@ -72,16 +68,18 @@ a fresh download.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos (e.g. `black-forest-labs/FLUX.2-dev` VAE). Optional if all URLs point to public repos. |
+| `HF_TOKEN` | (empty) | HuggingFace token; **required** for gated repos. Optional if all URLs point to public repos. |
 | `MODEL_DIR` | `/models` | Directory for model files (mapped to a volume) |
+| `LORA_DIR` | `/loras` | Directory for LoRA files (mapped to a volume) |
 | `PORT` | `1234` | sd-server HTTP port |
-| `DIFFUSION_MODEL_URL` | *(see example below)* | URL for the diffusion model file |
-| `VAE_URL` | *(see example below)* | URL for the VAE file |
-| `LLM_URL` | *(see example below)* | URL for the text encoder / LLM file |
+| `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
+| `DIFFUSION_MODEL_URL` | *(none — must be set)* | URL for the diffusion model file |
+| `VAE_URL` | *(none — must be set)* | URL for the VAE file |
+| `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 
-### FLUX.2-klein-9B example URLs
+### Example: FLUX.2-klein-9B
 
 ```env
 DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
@@ -98,4 +96,4 @@ docker compose pull
 docker compose up -d
 ```
 
-Image: `ghcr.io/philipsorst/sdcpp-flux-klein-9b.docker:latest`
+Image: `ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker:latest`
