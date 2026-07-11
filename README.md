@@ -90,6 +90,9 @@ Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` →
 DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
 VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
 LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
+DIFFUSION_FA=1
+STEPS=4
+CFG_SCALE=1.0
 ```
 
 ## Using the pre-built GHCR image
