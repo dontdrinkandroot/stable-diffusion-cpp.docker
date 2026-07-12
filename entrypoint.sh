@@ -114,16 +114,25 @@ if [ "${DISABLE_AUTO_RESIZE_REF_IMAGE}" = "1" ]; then
     DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG="--disable-auto-resize-ref-image"
 fi
 
-exec /sd-server \
-    $DIFFUSION_MODEL_FLAG \
-    $VAE_FLAG \
-    $LLM_FLAG \
-    --listen-ip 0.0.0.0 \
-    --listen-port "$PORT" \
-    $DIFFUSION_FA_FLAG \
-    $OFFLOAD_TO_CPU_FLAG \
-    $CFG_SCALE_FLAG \
-    $STEPS_FLAG \
-    $DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG \
-    --lora-model-dir "$LORA_DIR" \
+CMD=(
+    /sd-server
+    $DIFFUSION_MODEL_FLAG
+    $VAE_FLAG
+    $LLM_FLAG
+    --listen-ip 0.0.0.0
+    --listen-port "$PORT"
+    $DIFFUSION_FA_FLAG
+    $OFFLOAD_TO_CPU_FLAG
+    $CFG_SCALE_FLAG
+    $STEPS_FLAG
+    $DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG
+    --lora-model-dir "$LORA_DIR"
     "$@"
+)
+
+echo "=== sd-server command ==="
+printf '%q ' "${CMD[@]}"
+echo
+echo "========================="
+
+exec "${CMD[@]}"
