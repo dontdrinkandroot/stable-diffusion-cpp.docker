@@ -88,7 +88,7 @@ Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` →
 
 ```env
 DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf
-VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors
+VAE_URL=https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors
 LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf
 DIFFUSION_FA=1
 STEPS=4

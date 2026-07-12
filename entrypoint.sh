@@ -11,7 +11,7 @@ if [ -z "$DIFFUSION_MODEL_URL" ] && [ -z "$VAE_URL" ] && [ -z "$LLM_URL" ]; then
     echo "Set at least one of DIFFUSION_MODEL_URL, VAE_URL, or LLM_URL."
     echo "Example:"
     echo "  DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf"
-    echo "  VAE_URL=https://huggingface.co/black-forest-labs/FLUX.2-dev/resolve/main/ae.safetensors"
+    echo "  VAE_URL=https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
     echo "  LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf"
     exit 1
 fi
