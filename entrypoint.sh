@@ -114,6 +114,21 @@ if [ "${DISABLE_AUTO_RESIZE_REF_IMAGE}" = "1" ]; then
     DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG="--disable-auto-resize-ref-image"
 fi
 
+SAMPLING_METHOD_FLAG=""
+if [ -n "$SAMPLING_METHOD" ]; then
+    SAMPLING_METHOD_FLAG="--sampling-method $SAMPLING_METHOD"
+fi
+
+SCHEDULER_FLAG=""
+if [ -n "$SCHEDULER" ]; then
+    SCHEDULER_FLAG="--scheduler $SCHEDULER"
+fi
+
+FLOW_SHIFT_FLAG=""
+if [ -n "$FLOW_SHIFT" ]; then
+    FLOW_SHIFT_FLAG="--flow-shift $FLOW_SHIFT"
+fi
+
 CMD=(
     /sd-server
     $DIFFUSION_MODEL_FLAG
@@ -126,6 +141,9 @@ CMD=(
     $CFG_SCALE_FLAG
     $STEPS_FLAG
     $DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG
+    $SAMPLING_METHOD_FLAG
+    $SCHEDULER_FLAG
+    $FLOW_SHIFT_FLAG
     --lora-model-dir "$LORA_DIR"
     "$@"
 )

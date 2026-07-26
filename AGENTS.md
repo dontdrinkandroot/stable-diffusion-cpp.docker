@@ -112,6 +112,9 @@ This step can only be done after the first build creates the package.
 | `CFG_SCALE` | *(empty)* | Sets `--cfg-scale` value (classifier-free guidance scale) |
 | `STEPS` | *(empty)* | Sets `--steps` value (number of sampling steps) |
 | `DISABLE_AUTO_RESIZE_REF_IMAGE` | *(empty)* | Set to `1` to enable `--disable-auto-resize-ref-image` |
+| `SAMPLING_METHOD` | *(empty)* | Sets `--sampling-method` value (e.g. `euler`, `dpm++2m`, `res_multistep`). Value is forwarded verbatim to sd-server; no validation. |
+| `SCHEDULER` | *(empty)* | Sets `--scheduler` value (e.g. `simple`, `karras`, `discrete`). Value is forwarded verbatim to sd-server; no validation. |
+| `FLOW_SHIFT` | *(empty)* | Sets `--flow-shift` value (numeric, for Flow models like SD3.x/WAN). Value is forwarded verbatim to sd-server; no validation. |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 
@@ -214,6 +217,9 @@ Key flags used in this project:
 --cfg-scale <value>        # Classifier-free guidance scale (conditional: CFG_SCALE)
 --steps <value>            # Number of sampling steps (conditional: STEPS)
 --disable-auto-resize-ref-image  # Disable auto-resize of reference image (conditional: DISABLE_AUTO_RESIZE_REF_IMAGE=1)
+--sampling-method <value>  # Sampling method (conditional: SAMPLING_METHOD)
+--scheduler <value>        # Denoiser sigma scheduler (conditional: SCHEDULER)
+--flow-shift <value>       # Shift value for Flow models like SD3.x/WAN (conditional: FLOW_SHIFT)
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 ```
 
