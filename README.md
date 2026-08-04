@@ -15,8 +15,8 @@ named volume for subsequent runs.
 ### 1. Set model URLs
 
 You **must** set the model URLs via environment variables. There are no built-in
-defaults — configure at least one of `DIFFUSION_MODEL_URL`, `VAE_URL`, or
-`LLM_URL` for the models you want to use.
+defaults — configure at least one of `DIFFUSION_MODEL_URL`, `VAE_URL`,
+`AUDIO_VAE_URL`, or `LLM_URL` for the models you want to use.
 
 ### 2. Set your HuggingFace token
 
@@ -75,6 +75,7 @@ a fresh download.
 | `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
 | `DIFFUSION_MODEL_URL` | *(none — must be set)* | URL for the diffusion model file |
 | `VAE_URL` | *(none — must be set)* | URL for the VAE file |
+| `AUDIO_VAE_URL` | *(none)* | URL for the audio VAE file (passed via `--audio-vae`; required for audio-generating video models like MiniMax-H3) |
 | `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
 | `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
 | `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
@@ -94,6 +95,29 @@ DIFFUSION_FA=1
 STEPS=4
 CFG_SCALE=1.0
 ```
+
+### Example: MiniMax-H3 (FL2VA)
+
+MiniMax-H3 jointly generates video and stereo audio. It requires four
+components, wired via `--diffusion-model`, `--vae`, `--audio-vae`, and `--llm`:
+
+```env
+DIFFUSION_MODEL_URL=https://huggingface.co/leejet/MiniMax-H3-GGUF/resolve/main/minimax_h3_fl2va-Q4_K_M.gguf
+VAE_URL=https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors
+AUDIO_VAE_URL=https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors
+LLM_URL=https://huggingface.co/leejet/MiniMax-H3-GGUF/resolve/main/qwen3vl_32b_minimax_h3-Q4_K_M.gguf
+```
+
+Notes:
+
+- The text encoder must be the MiniMax-H3 variant of Qwen3-VL-32B (50
+  language layers, exported without the final language-model normalization).
+- Omitting `AUDIO_VAE_URL` still runs the joint diffusion model but produces
+  video without a decoded audio track.
+- The model repositories require accepting the MiniMax H3 Community License
+  and providing a `HF_TOKEN`.
+- Size: diffusion model ~18.8 GB (Q4_K_M), video VAE ~5.2 GB, audio VAE ~605 MB,
+  text encoder ~11.4 GB (Q4_K_M).
 
 ## Using the pre-built GHCR image
 

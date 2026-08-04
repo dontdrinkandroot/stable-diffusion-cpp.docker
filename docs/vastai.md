@@ -148,7 +148,8 @@ vastai create instance OFFER_ID \
 | `--disk 40` | 40 GB disk (cannot be changed later) |
 | `-e HF_TOKEN=...` | HuggingFace token (required for gated repos) |
 | `-e DIFFUSION_MODEL_URL=...` | URL for the diffusion model |
-| `-e VAE_URL=...` | URL for the VAE |
+| `-e VAE_URL=...` | URL for the VAE (video VAE for MiniMax-H3) |
+| `-e AUDIO_VAE_URL=...` | URL for the audio VAE (required for audio-generating video models like MiniMax-H3) |
 | `-e LLM_URL=...` | URL for the text encoder / LLM |
 | `-p 1234:1234` | Expose the sd-server HTTP port |
 | `--onstart-cmd '/entrypoint.sh'` | Run the entrypoint script on start |
@@ -516,13 +517,33 @@ Available flags:
 
 ```
 --diffusion-model <path>   # Diffusion model GGUF file
---vae <path>               # VAE file
+--vae <path>               # VAE file (video VAE for MiniMax-H3)
+--audio-vae <path>         # Audio VAE file (e.g. MiniMax-H3)
 --llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 ```
+
+### MiniMax-H3
+
+MiniMax-H3 jointly generates video and stereo audio and needs **four** model
+components (diffusion model, video VAE, audio VAE, text encoder). Example `--env`:
+
+```bash
+--env '-e HF_TOKEN=hf_your_token_here \
+  -e DIFFUSION_MODEL_URL=https://huggingface.co/leejet/MiniMax-H3-GGUF/resolve/main/minimax_h3_fl2va-Q4_K_M.gguf \
+  -e VAE_URL=https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors \
+  -e AUDIO_VAE_URL=https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors \
+  -e LLM_URL=https://huggingface.co/leejet/MiniMax-H3-GGUF/resolve/main/qwen3vl_32b_minimax_h3-Q4_K_M.gguf \
+  -p 1234:1234'
+```
+
+Model weights total ~36 GB (18.8 GB diffusion + 5.2 GB video VAE + 0.6 GB audio
+VAE + ~11.4 GB text encoder), so allocate **at least 60 GB disk** and prefer a
+24 GB GPU plus generous system RAM for `--offload-to-cpu`.
+See the [stable-diffusion.cpp MiniMax-H3 guide](https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/minimax_h3.md).
 
 ### LoRA directory
 

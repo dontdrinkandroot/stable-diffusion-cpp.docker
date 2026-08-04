@@ -10,6 +10,22 @@ variables — there are no hardcoded defaults.
 ## Instructions
 
 * **Get back to the user:** When seemingly stuck, when an approach does not work as expected, or when new decisions have to be taken, the LLM Agent MUST stop and get back to the user with the situation and options instead of continuing with assumptions. Do not silently pivot to a different approach.
+ 
+## Tool Usage
+
+Use the dedicated tools; the `bash` tool is ONLY for actually executing
+  commands (running `bin/validate-backend`/`bin/validate-frontend`, PHPUnit, PHPStan,
+  `composer`/`pnpm`, `git`, migrations). Never use `bash` for reading, searching, or
+  listing — use the dedicated tools:
+    - Find files by pattern -> `glob` (never `find` / `ls`)
+    - Search file contents -> `grep` (never shell `grep`/`rg`, except `rg -c` for counts)
+    - Read a file OR list a directory's entries -> `read` (it accepts directories; never `cat`/`head`/`ls`)
+    - Edit files -> `edit` / `write` (never `sed` / `awk` / `echo`)
+  For several independent lookups, fire parallel dedicated-tool calls in one message
+  instead of chaining shell commands.
+  If the dedicated tools seem stuck (e.g. `glob` finds nothing in an unfamiliar `vendor/`
+  tree), `read` the directory itself or widen the glob — do NOT fall back to `find`/`ls`.
+  If an exploration still cannot be done, ask the user instead of guessing with `bash`.
 
 ## Model Download (aria2c)
 
@@ -106,6 +122,7 @@ This step can only be done after the first build creates the package.
 | `MAX_ATTEMPTS` | `3` | Max download retry attempts before failing |
 | `DIFFUSION_MODEL_URL` | *(none — must be set)* | URL for the diffusion model file |
 | `VAE_URL` | *(none — must be set)* | URL for the VAE file |
+| `AUDIO_VAE_URL` | *(none)* | URL for the audio VAE file (passed via `--audio-vae`; required for audio-generating video models like MiniMax-H3) |
 | `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
 | `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
 | `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
@@ -128,6 +145,25 @@ Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` →
 
 > **Note:** `black-forest-labs/FLUX.2-dev` is a gated repo. Requires accepting the
 > FLUX Non-Commercial License and providing `HF_TOKEN`.
+
+## Model Files (Example: MiniMax-H3)
+
+MiniMax-H3 jointly generates video and stereo audio. The server needs FOUR
+components wired separately via `--diffusion-model`, `--vae`, `--audio-vae`,
+and `--llm`. The upstream doc is `docs/minimax_h3.md`.
+
+| Component | Repo | File | Size |
+|-------|------|------|------|
+| Diffusion model (Q4_K_M) | `leejet/MiniMax-H3-GGUF` | `minimax_h3_fl2va-Q4_K_M.gguf` | ~18.8 GB |
+| Video VAE | `Comfy-Org/MiniMax-H3` | `minimax_h3_video_vae_fp16.safetensors` | ~5.2 GB |
+| Audio VAE | `Comfy-Org/MiniMax-H3` | `minimax_h3_audio_vae_fp32.safetensors` | ~605 MB |
+| Text encoder (Q4_K_M) | `leejet/MiniMax-H3-GGUF` | `qwen3vl_32b_minimax_h3-Q4_K_M.gguf` | ~11.4 GB |
+
+> **Note:** The text encoder must be the MiniMax-H3 variant of Qwen3-VL-32B
+> (truncated to 50 language layers, exported without the final language-model
+> normalization). The H3 repos require accepting the MiniMax H3 Community
+> License and providing `HF_TOKEN`. Omitting `AUDIO_VAE_URL` still runs the
+> joint diffusion model but produces video without a decoded audio track.
 
 ## Healthcheck
 
@@ -181,6 +217,7 @@ confirming `sshd -T` reports `strictmodes no`.
 - All pre-built images: https://github.com/leejet/stable-diffusion.cpp/pkgs/container/stable-diffusion.cpp
 - Build docs: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/build.md
 - Docker docs: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/docker.md
+- MiniMax-H3 guide: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/minimax_h3.md
 - FLUX.2 usage guide: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/flux2.md
 - Performance guide: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/performance.md
 
@@ -196,6 +233,9 @@ confirming `sshd -T` reports `strictmodes no`.
 - FLUX.2-dev (VAE source, gated): https://huggingface.co/black-forest-labs/FLUX.2-dev
 - Qwen3-8B GGUF (text encoder): https://huggingface.co/unsloth/Qwen3-8B-GGUF
 - FLUX.2-small-decoder (alternative VAE): https://huggingface.co/black-forest-labs/FLUX.2-small-decoder
+- MiniMax-H3 GGUF (all quantizations): https://huggingface.co/leejet/MiniMax-H3-GGUF
+- MiniMax-H3 weights (VAE sources, license required): https://huggingface.co/Comfy-Org/MiniMax-H3
+- MiniMax-H3 (official, gated): https://huggingface.co/MiniMaxAI/MiniMax-H3
 
 ### FLUX.2-klein Model Card
 
@@ -210,6 +250,7 @@ Key flags used in this project:
 ```
 --diffusion-model <path>   # Diffusion model GGUF file
 --vae <path>               # VAE file
+--audio-vae <path>         # Audio VAE file (conditional: AUDIO_VAE_URL; e.g. MiniMax-H3)
 --llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model (conditional: DIFFUSION_FA=1)

@@ -6,12 +6,13 @@ LORA_DIR="${LORA_DIR:-/loras}"
 PORT="${PORT:-1234}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 
-if [ -z "$DIFFUSION_MODEL_URL" ] && [ -z "$VAE_URL" ] && [ -z "$LLM_URL" ]; then
+if [ -z "$DIFFUSION_MODEL_URL" ] && [ -z "$VAE_URL" ] && [ -z "$AUDIO_VAE_URL" ] && [ -z "$LLM_URL" ]; then
     echo "ERROR: No model URLs configured."
-    echo "Set at least one of DIFFUSION_MODEL_URL, VAE_URL, or LLM_URL."
+    echo "Set at least one of DIFFUSION_MODEL_URL, VAE_URL, AUDIO_VAE_URL, or LLM_URL."
     echo "Example:"
     echo "  DIFFUSION_MODEL_URL=https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q6_K.gguf"
     echo "  VAE_URL=https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
+    echo "  AUDIO_VAE_URL=https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors"
     echo "  LLM_URL=https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q6_K.gguf"
     exit 1
 fi
@@ -34,6 +35,11 @@ fi
 if [ -n "$VAE_URL" ]; then
     echo "${VAE_URL}" >> "$INPUT_FILE"
     echo "  out=$(basename "$VAE_URL")" >> "$INPUT_FILE"
+fi
+
+if [ -n "$AUDIO_VAE_URL" ]; then
+    echo "${AUDIO_VAE_URL}" >> "$INPUT_FILE"
+    echo "  out=$(basename "$AUDIO_VAE_URL")" >> "$INPUT_FILE"
 fi
 
 if [ -n "$LLM_URL" ]; then
@@ -82,6 +88,11 @@ fi
 VAE_FLAG=""
 if [ -n "$VAE_URL" ]; then
     VAE_FLAG="--vae $MODEL_DIR/$(basename "$VAE_URL")"
+fi
+
+AUDIO_VAE_FLAG=""
+if [ -n "$AUDIO_VAE_URL" ]; then
+    AUDIO_VAE_FLAG="--audio-vae $MODEL_DIR/$(basename "$AUDIO_VAE_URL")"
 fi
 
 LLM_FLAG=""
@@ -133,6 +144,7 @@ CMD=(
     /sd-server
     $DIFFUSION_MODEL_FLAG
     $VAE_FLAG
+    $AUDIO_VAE_FLAG
     $LLM_FLAG
     --listen-ip 0.0.0.0
     --listen-port "$PORT"

@@ -11,6 +11,7 @@ services:
       - HF_TOKEN=${HF_TOKEN:-}
       - DIFFUSION_MODEL_URL=${DIFFUSION_MODEL_URL:-}
       - VAE_URL=${VAE_URL:-}
+      - AUDIO_VAE_URL=${AUDIO_VAE_URL:-}
       - LLM_URL=${LLM_URL:-}
     deploy:
       resources:
