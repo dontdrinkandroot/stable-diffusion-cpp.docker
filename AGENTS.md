@@ -132,6 +132,13 @@ This step can only be done after the first build creates the package.
 | `SAMPLING_METHOD` | *(empty)* | Sets `--sampling-method` value (e.g. `euler`, `dpm++2m`, `res_multistep`). Value is forwarded verbatim to sd-server; no validation. |
 | `SCHEDULER` | *(empty)* | Sets `--scheduler` value (e.g. `simple`, `karras`, `discrete`). Value is forwarded verbatim to sd-server; no validation. |
 | `FLOW_SHIFT` | *(empty)* | Sets `--flow-shift` value (numeric, for Flow models like SD3.x/WAN). Value is forwarded verbatim to sd-server; no validation. |
+| `FPS` | *(empty)* | Sets `--fps` value (video framerate). Value is forwarded verbatim to sd-server; no validation. |
+| `VIDEO_FRAMES` | *(empty)* | Sets `--video-frames` value (number of frames for video generation). Value is forwarded verbatim to sd-server; no validation. |
+| `WIDTH` | *(empty)* | Sets `--width` value (image width in pixels). Value is forwarded verbatim to sd-server; no validation. |
+| `HEIGHT` | *(empty)* | Sets `--height` value (image height in pixels). Value is forwarded verbatim to sd-server; no validation. |
+| `MAX_VRAM` | *(empty)* | Sets `--max-vram` value (e.g. `6` or `cuda0=6`; `-1` auto-detects free VRAM). Value is forwarded verbatim to sd-server; no validation. |
+| `VERBOSE` | *(empty)* | Set to `1` to enable `-v` (verbose logging). |
+| `AUTO_FIT` | *(empty)* | Set to `1` to enable `--auto-fit` (auto pick device placements from model size and per-device memory budgets). |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
 

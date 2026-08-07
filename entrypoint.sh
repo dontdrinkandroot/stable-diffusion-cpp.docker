@@ -140,6 +140,41 @@ if [ -n "$FLOW_SHIFT" ]; then
     FLOW_SHIFT_FLAG="--flow-shift $FLOW_SHIFT"
 fi
 
+FPS_FLAG=""
+if [ -n "$FPS" ]; then
+    FPS_FLAG="--fps $FPS"
+fi
+
+VIDEO_FRAMES_FLAG=""
+if [ -n "$VIDEO_FRAMES" ]; then
+    VIDEO_FRAMES_FLAG="--video-frames $VIDEO_FRAMES"
+fi
+
+WIDTH_FLAG=""
+if [ -n "$WIDTH" ]; then
+    WIDTH_FLAG="--width $WIDTH"
+fi
+
+HEIGHT_FLAG=""
+if [ -n "$HEIGHT" ]; then
+    HEIGHT_FLAG="--height $HEIGHT"
+fi
+
+MAX_VRAM_FLAG=""
+if [ -n "$MAX_VRAM" ]; then
+    MAX_VRAM_FLAG="--max-vram $MAX_VRAM"
+fi
+
+VERBOSE_FLAG=""
+if [ "${VERBOSE}" = "1" ]; then
+    VERBOSE_FLAG="-v"
+fi
+
+AUTO_FIT_FLAG=""
+if [ "${AUTO_FIT}" = "1" ]; then
+    AUTO_FIT_FLAG="--auto-fit"
+fi
+
 CMD=(
     /sd-server
     $DIFFUSION_MODEL_FLAG
@@ -156,6 +191,13 @@ CMD=(
     $SAMPLING_METHOD_FLAG
     $SCHEDULER_FLAG
     $FLOW_SHIFT_FLAG
+    $FPS_FLAG
+    $VIDEO_FRAMES_FLAG
+    $WIDTH_FLAG
+    $HEIGHT_FLAG
+    $MAX_VRAM_FLAG
+    $VERBOSE_FLAG
+    $AUTO_FIT_FLAG
     --lora-model-dir "$LORA_DIR"
     "$@"
 )
