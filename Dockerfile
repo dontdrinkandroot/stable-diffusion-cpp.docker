@@ -1,8 +1,14 @@
 FROM ghcr.io/leejet/stable-diffusion.cpp:master-cuda
 
+ENV UV_INSTALL_DIR=/usr/local/bin \
+    UV_TOOL_BIN_DIR=/usr/local/bin
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends aria2 ca-certificates curl && \
-    rm -rf /var/lib/apt/lists/*
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    rm -rf /var/lib/apt/lists/* && \
+    uv tool install huggingface_hub && \
+    uv cache clean
 
 # Vast.ai installs openssh-server in its overlay and sets StrictModes no via sed,
 # but Ubuntu 24.04 ships "#StrictModes yes" (commented) so the sed is a no-op and

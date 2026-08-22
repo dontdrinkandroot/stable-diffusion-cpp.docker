@@ -1,8 +1,8 @@
 # stable-diffusion-cpp.docker
 
 Generic Docker image for running [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (CUDA variant).
-Models are downloaded automatically on first startup via aria2c and cached in a
-named volume for subsequent runs.
+Models are downloaded automatically on first startup — via aria2c (URL-based) or
+`hf download` (HuggingFace spec-based) — and cached in a named volume for subsequent runs.
 
 ## Requirements
 
@@ -16,7 +16,8 @@ named volume for subsequent runs.
 
 You **must** set the model URLs via environment variables. There are no built-in
 defaults — configure at least one of `DIFFUSION_MODEL_URL`, `VAE_URL`,
-`AUDIO_VAE_URL`, or `LLM_URL` for the models you want to use.
+`AUDIO_VAE_URL`, or `LLM_URL` (or their `HF_*` equivalents, see below) for the
+models you want to use.
 
 ### 2. Set your HuggingFace token
 
@@ -77,6 +78,11 @@ a fresh download.
 | `VAE_URL` | *(none — must be set)* | URL for the VAE file |
 | `AUDIO_VAE_URL` | *(none)* | URL for the audio VAE file (passed via `--audio-vae`; required for audio-generating video models like MiniMax-H3) |
 | `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
+| `HF_DIFFUSION_MODEL` | *(none)* | HuggingFace spec `org/repo/file` for the diffusion model (downloaded via `hf download` instead of aria2c). Mutually exclusive with `DIFFUSION_MODEL_URL`. |
+| `HF_VAE` | *(none)* | HuggingFace spec `org/repo/file` for the VAE. Mutually exclusive with `VAE_URL`. |
+| `HF_AUDIO_VAE` | *(none)* | HuggingFace spec `org/repo/file` for the audio VAE. Mutually exclusive with `AUDIO_VAE_URL`. |
+| `HF_LLM` | *(none)* | HuggingFace spec `org/repo/file` for the text encoder / LLM. Mutually exclusive with `LLM_URL`. |
+| `HF_LORAS` | *(none)* | Comma-separated (no spaces) list of HuggingFace specs `org/repo/file` downloaded via `hf download` into `$LORA_DIR`. |
 | `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
 | `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
 | `CFG_SCALE` | *(empty)* | Sets `--cfg-scale` value (classifier-free guidance scale) |
@@ -94,6 +100,9 @@ a fresh download.
 | `AUTO_FIT` | *(empty)* | Set to `1` to enable `--auto-fit` (auto pick device placements from model size and per-device memory budgets). |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
+HF specs are resolved via `hf download REPO FILE --local-dir $MODEL_DIR`, preserving
+subdirectories in the file path (e.g. `org/repo/split_files/vae/foo.safetensors` →
+`$MODEL_DIR/split_files/vae/foo.safetensors`).
 
 ### Example: FLUX.2-klein-9B
 
@@ -128,6 +137,33 @@ Notes:
   and providing a `HF_TOKEN`.
 - Size: diffusion model ~18.8 GB (Q4_K_M), video VAE ~5.2 GB, audio VAE ~605 MB,
   text encoder ~11.4 GB (Q4_K_M).
+
+### Example: Krea 2 (turbo distill LoRA, HF specs)
+
+Krea 2 uses the Krea2 diffusion transformer, the Wan2.1 VAE, and Qwen3-VL-4B as
+the text encoder. This example runs the Raw base model with the
+`krea2-turbo-distill` LoRA applied (extracts Turbo behavior from the Raw→Turbo
+weight delta) — so the diffusion model is the **Raw** checkpoint, not Turbo.
+All components are given as `HF_*` specs (`org/repo/file`) and downloaded via
+`hf download` instead of aria2c:
+
+```env
+HF_DIFFUSION_MODEL=realrebelai/KREA-2_GGUFs/BASE/Krea-2-Base-Q4_K_M.gguf
+HF_VAE=Comfy-Org/Wan_2.1_ComfyUI_repackaged/split_files/vae/wan_2.1_vae.safetensors
+HF_LLM=Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf
+HF_LORAS=TheDivergentAI/krea2-turbo-distill-lora/krea2_turbo_distill_r128.safetensors
+STEPS=8
+CFG_SCALE=0
+DIFFUSION_FA=1
+```
+
+Notes:
+
+- The LoRA is downloaded into `$LORA_DIR` (`/loras`) and referenced at request
+  time via the sd-server API (e.g. `path: "krea2_turbo_distill_r128.safetensors"`).
+- Turbo-style sampling needs 8 steps with CFG disabled (`CFG_SCALE=0`).
+- The Raw GGUF is ~5.5 GB (Q4_K_M); the distill LoRA is ~0.94 GB (rank 128).
+- `HF_TOKEN` is required — the Krea 2 weights are under the Krea 2 Community License.
 
 ## Using the pre-built GHCR image
 

@@ -13,6 +13,11 @@ services:
       - VAE_URL=${VAE_URL:-}
       - AUDIO_VAE_URL=${AUDIO_VAE_URL:-}
       - LLM_URL=${LLM_URL:-}
+      - HF_DIFFUSION_MODEL=${HF_DIFFUSION_MODEL:-}
+      - HF_VAE=${HF_VAE:-}
+      - HF_AUDIO_VAE=${HF_AUDIO_VAE:-}
+      - HF_LLM=${HF_LLM:-}
+      - HF_LORAS=${HF_LORAS:-}
     deploy:
       resources:
         reservations:

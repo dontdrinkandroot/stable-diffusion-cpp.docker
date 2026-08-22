@@ -4,8 +4,8 @@
 
 Generic Docker image for running **stable-diffusion.cpp** (CUDA variant).
 Uses the pre-built upstream CUDA image and adds an entrypoint that downloads model weights
-on startup using **aria2c** with resume support. Model URLs are configured via environment
-variables — there are no hardcoded defaults.
+on startup using **aria2c** (URL-based) or **`hf download`** (HuggingFace spec-based).
+Models are configured via environment variables — there are no hardcoded defaults.
 
 ## Instructions
 
@@ -43,6 +43,38 @@ Models are downloaded via `aria2c` with an input file listing all 3 URLs:
 - **Retry loop**: the download is wrapped in a retry loop (default 3 attempts, configurable
   via `MAX_ATTEMPTS`). On failure, aria2c is re-invoked; `-c` ensures no wasted bandwidth.
 - aria2 is installed via `apt-get` (Debian package `aria2`).
+
+## HF Download (`hf download`)
+
+Each component can alternatively be specified as an HF spec `org/repo/file` via
+`HF_DIFFUSION_MODEL`, `HF_VAE`, `HF_AUDIO_VAE`, `HF_LLM`, and `HF_LORAS` (comma-separated
+list for loras). Setting both a `*_URL` and its `HF_*` counterpart for the same component
+is a hard error (mutually exclusive). Download runs in a separate retry loop from aria2c
+(same `MAX_ATTEMPTS`), one `hf download REPO FILE --local-dir $MODEL_DIR` (or `$LORA_DIR`)
+per component, sequential:
+
+- **No central cache**: `--local-dir` disables the HF cache entirely; the file lives only
+  at the target path. A `.cache/huggingface/` metadata folder (etag/commit, a few bytes)
+  is created inside the local dir so re-runs skip already-current files and resume
+  interrupted ones — it must be kept, not deleted.
+- `HF_TOKEN` is picked up natively by the CLI for gated repos.
+
+## `hf` CLI and `uv` (available globally)
+
+The image ships the HuggingFace `hf` CLI plus `uv` at **`/usr/local/bin`** (on PATH
+globally — root shells, `docker exec`, sshd sessions):
+
+- **`uv` / `uvx`**: installed with the standalone installer
+  (`curl -LsSf https://astral.sh/uv/install.sh | sh`); `UV_INSTALL_DIR=/usr/local/bin`
+  pins the uv binary location.
+- **`hf`**: installed via `uv tool install huggingface_hub` (the `hf` CLI ships with the
+  core `huggingface_hub` package). `UV_TOOL_BIN_DIR=/usr/local/bin` puts the `hf` shim on
+  PATH. `hf update` self-updates to the latest version.
+- Managed CPython for the tool environment is auto-downloaded by uv at build time
+  (no system Python required on the CUDA runtime base).
+- **Cache hygiene**: `uv cache clean` runs after the install in the Dockerfile to drop the
+  downloaded CPython/wheel caches (the tool venv lives outside the cache in
+  `~/.local/share/uv/tools` and is unaffected). No runtime uv cache cleaning is needed.
 
 ## Project Structure
 
@@ -124,6 +156,11 @@ This step can only be done after the first build creates the package.
 | `VAE_URL` | *(none — must be set)* | URL for the VAE file |
 | `AUDIO_VAE_URL` | *(none)* | URL for the audio VAE file (passed via `--audio-vae`; required for audio-generating video models like MiniMax-H3) |
 | `LLM_URL` | *(none — must be set)* | URL for the text encoder / LLM file |
+| `HF_DIFFUSION_MODEL` | *(none)* | HuggingFace spec `org/repo/file` for the diffusion model (downloaded via `hf download` instead of aria2c). Mutually exclusive with `DIFFUSION_MODEL_URL`. |
+| `HF_VAE` | *(none)* | HuggingFace spec `org/repo/file` for the VAE. Mutually exclusive with `VAE_URL`. |
+| `HF_AUDIO_VAE` | *(none)* | HuggingFace spec `org/repo/file` for the audio VAE. Mutually exclusive with `AUDIO_VAE_URL`. |
+| `HF_LLM` | *(none)* | HuggingFace spec `org/repo/file` for the text encoder / LLM. Mutually exclusive with `LLM_URL`. |
+| `HF_LORAS` | *(none)* | Comma-separated (no spaces) list of HuggingFace specs `org/repo/file` downloaded via `hf download` into `$LORA_DIR`. |
 | `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
 | `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
 | `CFG_SCALE` | *(empty)* | Sets `--cfg-scale` value (classifier-free guidance scale) |
@@ -141,6 +178,8 @@ This step can only be done after the first build creates the package.
 | `AUTO_FIT` | *(empty)* | Set to `1` to enable `--auto-fit` (auto pick device placements from model size and per-device memory budgets). |
 
 Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` → `$MODEL_DIR/foo.gguf`).
+HF specs are resolved via `hf download REPO FILE --local-dir $MODEL_DIR`, preserving subdirectories
+in the file path (e.g. `org/repo/split_files/vae/foo.safetensors` → `$MODEL_DIR/split_files/vae/foo.safetensors`).
 
 ## Model Files (Example: FLUX.2-klein-9B)
 
@@ -152,6 +191,26 @@ Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` →
 
 > **Note:** `black-forest-labs/FLUX.2-dev` is a gated repo. Requires accepting the
 > FLUX Non-Commercial License and providing `HF_TOKEN`.
+
+## Model Files (Example: Krea 2 + turbo distill LoRA)
+
+Krea 2 uses the Krea2 diffusion transformer, the Wan2.1 VAE, and Qwen3-VL-4B as
+the text encoder. The upstream doc is `docs/krea2.md`. The turbo-distill LoRA
+extracts the Raw→Turbo weight delta, so it is applied on the **Raw** checkpoint.
+Example `HF_*` specs (used via `hf download`):
+
+```env
+HF_DIFFUSION_MODEL=realrebelai/KREA-2_GGUFs/BASE/Krea-2-Base-Q4_K_M.gguf
+HF_VAE=Comfy-Org/Wan_2.1_ComfyUI_repackaged/split_files/vae/wan_2.1_vae.safetensors
+HF_LLM=Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf
+HF_LORAS=TheDivergentAI/krea2-turbo-distill-lora/krea2_turbo_distill_r128.safetensors
+STEPS=8
+CFG_SCALE=0
+```
+
+- Turbo-style sampling: 8 steps, CFG disabled (`CFG_SCALE=0`).
+- The LoRA lands in `$LORA_DIR` and is referenced via the sd-server API at request time.
+- Krea 2 weights are under the Krea 2 Community License (`HF_TOKEN` required).
 
 ## Model Files (Example: MiniMax-H3)
 
