@@ -59,6 +59,29 @@ per component, sequential:
   interrupted ones — it must be kept, not deleted.
 - `HF_TOKEN` is picked up natively by the CLI for gated repos.
 
+### Progress reporting for `hf download`
+
+huggingface_hub's own tqdm progress bar is auto-disabled on non-TTY output (docker logs),
+so `download_hf_with_progress` in `entrypoint.sh` reports progress itself: it fetches the
+remote file size via a one-shot `HEAD` to `https://huggingface.co/{repo}/resolve/main/{file}`
+(`X-Linked-Size`, falling back to the final response's `Content-Length` — redirects
+followed so the redirect body's length is never misread, cf. huggingface_hub#4699), runs
+`hf download` in the background and samples the `*.incomplete` temp file under
+`$LOCAL_DIR/.cache/huggingface/download/` every 10 seconds, logging lines like:
+
+```
+[download] 42% (3.3 GiB / 7.9 GiB) 45.2 MiB/s ETA 1m40s
+```
+
+- A size fetch failure (gated repo without `HF_TOKEN`, offline) degrades gracefully to
+  bytes+rate only (`[download] 3.3 GiB downloaded 45.2 MiB/s`).
+- If the incomplete file's path changes mid-download (new etag/revision), the counter is
+  reset and a `--- download restarted (prior partial download: ...) ---` line is logged;
+  resumed downloads (same etag) show the partial file's size directly, so percent starts
+  where the previous run left off.
+- The function's exit code plugs into the existing retry loop unchanged; `aria2c` keeps
+  its own native progress output.
+
 ## `hf` CLI and `uv` (available globally)
 
 The image ships the HuggingFace `hf` CLI plus `uv` at **`/usr/local/bin`** (on PATH

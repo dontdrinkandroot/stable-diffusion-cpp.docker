@@ -55,6 +55,146 @@ parse_hf_spec() {
     printf -v "$file_var" '%s' "${rest#*/}"
 }
 
+# Format a byte count as a human-readable string (e.g. 7865424160 -> "7.9 GiB")
+human_bytes() {
+    local bytes="${1:-0}"
+    case "$bytes" in
+        ''|*[!0-9]*) bytes=0 ;;
+    esac
+    if [ "$bytes" -ge 1073741824 ]; then
+        awk -v b="$bytes" 'BEGIN { printf "%.1f GiB", b / 1073741824 }'
+    elif [ "$bytes" -ge 1048576 ]; then
+        awk -v b="$bytes" 'BEGIN { printf "%.1f MiB", b / 1048576 }'
+    elif [ "$bytes" -ge 1024 ]; then
+        awk -v b="$bytes" 'BEGIN { printf "%.1f KiB", b / 1024 }'
+    else
+        echo "${bytes} B"
+    fi
+}
+
+# Format a duration in seconds as a human-readable string (e.g. 100 -> "1m40s")
+format_eta() {
+    local secs="${1:-0}"
+    [ "$secs" -lt 0 ] && secs=0
+    if [ "$secs" -ge 3600 ]; then
+        printf "%dh%02dm%02ds" $((secs / 3600)) $(((secs % 3600) / 60)) $((secs % 60))
+    elif [ "$secs" -ge 60 ]; then
+        printf "%dm%02ds" $((secs / 60)) $((secs % 60))
+    else
+        printf "%ds" "$secs"
+    fi
+}
+
+# Fetch the remote size (in bytes) of a file in an HF repo, or nothing on failure.
+# Uses a HEAD request with redirects followed so Content-Length is read from the
+# final response only (falling back to X-Linked-Size, which is present for LFS/Xet
+# files). Mirror of huggingface_hub's get_hf_file_metadata after #4699.
+get_remote_size() {
+    local repo=$1
+    local file=$2
+    local auth=()
+    if [ -n "$HF_TOKEN" ]; then
+        auth=(-H "Authorization: Bearer $HF_TOKEN")
+    fi
+    local headers size
+    headers=$(curl -sSLIf -m 30 2>/dev/null "${auth[@]}" "https://huggingface.co/${repo}/resolve/main/${file}") || return 1
+    size=$(printf '%s\n' "$headers" | awk '
+        tolower($1) == "x-linked-size:" { size=$2 }
+        tolower($1) == "content-length:" { len=$2 }
+        END { gsub(/\r/, "", size); gsub(/\r/, "", len); print (size != "" ? size : len) }')
+    case "$size" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    printf '%s' "$size"
+}
+
+# One hf download with a size-based progress monitor for docker logs.
+# huggingface_hub's own tqdm bar is auto-disabled on non-TTY output, so we sample
+# the *.incomplete temp file every 10s and log percent/rate/ETA ourselves.
+download_hf_with_progress() {
+    local repo=$1
+    local file=$2
+    local local_dir=$3
+    local size total_display
+    size=$(get_remote_size "$repo" "$file") || size=""
+    if [ -n "$size" ]; then
+        total_display=$(human_bytes "$size")
+        echo "--- hf download $repo $file (total: $total_display) ---"
+    else
+        echo "--- hf download $repo $file (total size unknown) ---"
+    fi
+
+    hf download "$repo" "$file" --local-dir "$local_dir" &
+    local pid=$!
+
+    local base_bytes=0
+    local path_seen=""
+    local prev_bytes=0
+    local prev_time=0
+    local incomplete_dir="$local_dir/.cache/huggingface/download"
+
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep 10
+        if [ "$(ps -o stat= -p "$pid" 2>/dev/null)" = "Z" ]; then
+            break
+        fi
+        local incomplete_path bytes now delta_time delta_bytes rate done_bytes pct eta
+        incomplete_path=$(find "$incomplete_dir" -type f -name '*.incomplete' \
+            -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)
+        [ -z "$incomplete_path" ] && continue
+        bytes=$(stat -c %s "$incomplete_path" 2>/dev/null) || continue
+        now=$(date +%s)
+
+        if [ -n "$path_seen" ] && [ "$incomplete_path" != "$path_seen" ]; then
+            if [ "$prev_bytes" -gt 0 ]; then
+                base_bytes=$((base_bytes + prev_bytes))
+                echo "--- download restarted (prior partial download: $(human_bytes "$prev_bytes")) ---"
+            fi
+            path_seen=$incomplete_path
+            prev_bytes=$bytes
+            prev_time=$now
+            continue
+        fi
+
+        if [ -z "$path_seen" ]; then
+            path_seen=$incomplete_path
+            prev_bytes=$bytes
+            prev_time=$now
+            continue
+        fi
+
+        delta_time=$((now - prev_time))
+        [ "$delta_time" -lt 1 ] && delta_time=1
+        delta_bytes=$((bytes - prev_bytes))
+        [ "$delta_bytes" -lt 0 ] && delta_bytes=0
+        rate=$((delta_bytes / delta_time))
+        prev_bytes=$bytes
+        prev_time=$now
+        done_bytes=$((base_bytes + bytes))
+
+        if [ -n "$size" ]; then
+            pct=$((done_bytes * 100 / size))
+            [ "$pct" -gt 100 ] && pct=100
+            eta=""
+            if [ "$rate" -gt 0 ] && [ "$size" -gt "$done_bytes" ]; then
+                eta=" ETA $(format_eta $(((size - done_bytes) / rate)))"
+            fi
+            echo "[download] ${pct}% ($(human_bytes "$done_bytes") / $total_display) $(human_bytes "$rate")/s${eta}"
+        else
+            echo "[download] $(human_bytes "$done_bytes") downloaded $(human_bytes "$rate")/s"
+        fi
+    done
+
+    local rc=0
+    wait "$pid" || rc=$?
+    if [ "$rc" -eq 0 ]; then
+        echo "--- hf download complete: $repo $file ---"
+    else
+        echo "--- hf download failed: $repo $file ---"
+    fi
+    return "$rc"
+}
+
 HF_DOWNLOADS=()
 if [ -n "$HF_DIFFUSION_MODEL" ]; then
     parse_hf_spec "$HF_DIFFUSION_MODEL" HF_DIFFUSION_REPO HF_DIFFUSION_FILE
@@ -153,8 +293,7 @@ if [ ${#HF_DOWNLOADS[@]} -gt 0 ]; then
         for entry in "${HF_DOWNLOADS[@]}"; do
             repo="${entry%%|*}"
             file="${entry#*|}"
-            echo "--- hf download $repo $file ---"
-            if ! hf download "$repo" "$file" --local-dir "$MODEL_DIR"; then
+            if ! download_hf_with_progress "$repo" "$file" "$MODEL_DIR"; then
                 echo "--- hf download failed: $repo $file ---"
                 failed=1
                 break
@@ -184,8 +323,7 @@ if [ ${#HF_LORAS_DOWNLOADS[@]} -gt 0 ]; then
         for entry in "${HF_LORAS_DOWNLOADS[@]}"; do
             repo="${entry%%|*}"
             file="${entry#*|}"
-            echo "--- hf download $repo $file ---"
-            if ! hf download "$repo" "$file" --local-dir "$LORA_DIR"; then
+            if ! download_hf_with_progress "$repo" "$file" "$LORA_DIR"; then
                 echo "--- hf download failed: $repo $file ---"
                 failed=1
                 break

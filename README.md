@@ -103,6 +103,9 @@ Local filenames are derived from the URL via `basename` (e.g. `.../foo.gguf` →
 HF specs are resolved via `hf download REPO FILE --local-dir $MODEL_DIR`, preserving
 subdirectories in the file path (e.g. `org/repo/split_files/vae/foo.safetensors` →
 `$MODEL_DIR/split_files/vae/foo.safetensors`).
+HF downloads log their own progress in docker logs (`[download] 42% (3.3 GiB / 7.9 GiB)
+45.2 MiB/s ETA 1m40s`, every 10 seconds — tqdm is auto-disabled on non-TTY output; bytes
+only when the file size cannot be determined, e.g. gated repos without `HF_TOKEN`).
 
 ### Example: FLUX.2-klein-9B
 
