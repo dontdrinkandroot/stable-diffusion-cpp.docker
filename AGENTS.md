@@ -185,10 +185,11 @@ This step can only be done after the first build creates the package.
 | `HF_LLM` | *(none)* | HuggingFace spec `org/repo/file` for the text encoder / LLM. Mutually exclusive with `LLM_URL`. |
 | `HF_LORAS` | *(none)* | Comma-separated (no spaces) list of HuggingFace specs `org/repo/file` downloaded via `hf download` into `$LORA_DIR`. |
 | `DIFFUSION_FA` | *(empty)* | Set to `1` to enable `--diffusion-fa` (Flash Attention for diffusion model) |
+| `SAGE_ATTN` | *(empty)* | Set to `1` to enable `--sage-attn` (native CUDA SageAttention in the diffusion model; requires SM80+ GPU and a compatible build — unsupported setups are rejected at startup) |
 | `OFFLOAD_TO_CPU` | *(empty)* | Set to `1` to enable `--offload-to-cpu` (offload to CPU when VRAM is insufficient) |
 | `CFG_SCALE` | *(empty)* | Sets `--cfg-scale` value (classifier-free guidance scale) |
 | `STEPS` | *(empty)* | Sets `--steps` value (number of sampling steps) |
-| `DISABLE_AUTO_RESIZE_REF_IMAGE` | *(empty)* | Set to `1` to enable `--disable-auto-resize-ref-image` |
+| `REF_IMAGE_ARGS` | *(empty)* | Sets `--ref-image-args` value (comma-separated `key=value` list configuring reference-image processing, e.g. `preset=qwen_layered`; see upstream `docs/edit.md`). Value is forwarded verbatim to sd-server; no validation. |
 | `SAMPLING_METHOD` | *(empty)* | Sets `--sampling-method` value (e.g. `euler`, `dpm++2m`, `res_multistep`). Value is forwarded verbatim to sd-server; no validation. |
 | `SCHEDULER` | *(empty)* | Sets `--scheduler` value (e.g. `simple`, `karras`, `discrete`). Value is forwarded verbatim to sd-server; no validation. |
 | `FLOW_SHIFT` | *(empty)* | Sets `--flow-shift` value (numeric, for Flow models like SD3.x/WAN). Value is forwarded verbatim to sd-server; no validation. |
@@ -197,6 +198,7 @@ This step can only be done after the first build creates the package.
 | `WIDTH` | *(empty)* | Sets `--width` value (image width in pixels). Value is forwarded verbatim to sd-server; no validation. |
 | `HEIGHT` | *(empty)* | Sets `--height` value (image height in pixels). Value is forwarded verbatim to sd-server; no validation. |
 | `MAX_VRAM` | *(empty)* | Sets `--max-vram` value (e.g. `6` or `cuda0=6`; `-1` auto-detects free VRAM). Value is forwarded verbatim to sd-server; no validation. |
+| `PARAMS_BACKEND` | *(empty)* | Sets `--params-backend` value (where model parameters are kept: `disk`, `cpu`, or per-module assignments like `diffusion=disk,clip=cpu`; see upstream `docs/performance.md`). Value is forwarded verbatim to sd-server; no validation. |
 | `VERBOSE` | *(empty)* | Set to `1` to enable `-v` (verbose logging). |
 | `AUTO_FIT` | *(empty)* | Set to `1` to enable `--auto-fit` (auto pick device placements from model size and per-device memory budgets). |
 
@@ -343,13 +345,15 @@ Key flags used in this project:
 --llm <path>               # Text encoder / LLM GGUF file
 --port <port>              # HTTP server port (default: 1234)
 --diffusion-fa             # Flash Attention for diffusion model (conditional: DIFFUSION_FA=1)
+--sage-attn                # Native CUDA SageAttention in the diffusion model (conditional: SAGE_ATTN=1)
 --offload-to-cpu           # Offload to CPU when VRAM is insufficient (conditional: OFFLOAD_TO_CPU=1)
 --cfg-scale <value>        # Classifier-free guidance scale (conditional: CFG_SCALE)
 --steps <value>            # Number of sampling steps (conditional: STEPS)
---disable-auto-resize-ref-image  # Disable auto-resize of reference image (conditional: DISABLE_AUTO_RESIZE_REF_IMAGE=1)
+--ref-image-args <value>   # Reference-image processing args, comma-separated key=value list (conditional: REF_IMAGE_ARGS)
 --sampling-method <value>  # Sampling method (conditional: SAMPLING_METHOD)
 --scheduler <value>        # Denoiser sigma scheduler (conditional: SCHEDULER)
 --flow-shift <value>       # Shift value for Flow models like SD3.x/WAN (conditional: FLOW_SHIFT)
+--params-backend <value>   # Parameter backend assignment: disk, cpu, or per-module e.g. diffusion=disk,clip=cpu (conditional: PARAMS_BACKEND)
 --lora-model-dir <path>   # LoRA directory (default: /loras; upload LoRAs here via SSH)
 ```
 

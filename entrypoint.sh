@@ -380,6 +380,11 @@ if [ "${DIFFUSION_FA}" = "1" ]; then
     DIFFUSION_FA_FLAG="--diffusion-fa"
 fi
 
+SAGE_ATTN_FLAG=""
+if [ "${SAGE_ATTN}" = "1" ]; then
+    SAGE_ATTN_FLAG="--sage-attn"
+fi
+
 OFFLOAD_TO_CPU_FLAG=""
 if [ "${OFFLOAD_TO_CPU}" = "1" ]; then
     OFFLOAD_TO_CPU_FLAG="--offload-to-cpu"
@@ -395,9 +400,9 @@ if [ -n "$STEPS" ]; then
     STEPS_FLAG="--steps $STEPS"
 fi
 
-DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG=""
-if [ "${DISABLE_AUTO_RESIZE_REF_IMAGE}" = "1" ]; then
-    DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG="--disable-auto-resize-ref-image"
+REF_IMAGE_ARGS_FLAG=""
+if [ -n "$REF_IMAGE_ARGS" ]; then
+    REF_IMAGE_ARGS_FLAG="--ref-image-args $REF_IMAGE_ARGS"
 fi
 
 SAMPLING_METHOD_FLAG=""
@@ -440,6 +445,11 @@ if [ -n "$MAX_VRAM" ]; then
     MAX_VRAM_FLAG="--max-vram $MAX_VRAM"
 fi
 
+PARAMS_BACKEND_FLAG=""
+if [ -n "$PARAMS_BACKEND" ]; then
+    PARAMS_BACKEND_FLAG="--params-backend $PARAMS_BACKEND"
+fi
+
 VERBOSE_FLAG=""
 if [ "${VERBOSE}" = "1" ]; then
     VERBOSE_FLAG="-v"
@@ -459,10 +469,11 @@ CMD=(
     --listen-ip 0.0.0.0
     --listen-port "$PORT"
     $DIFFUSION_FA_FLAG
+    $SAGE_ATTN_FLAG
     $OFFLOAD_TO_CPU_FLAG
     $CFG_SCALE_FLAG
     $STEPS_FLAG
-    $DISABLE_AUTO_RESIZE_REF_IMAGE_FLAG
+    $REF_IMAGE_ARGS_FLAG
     $SAMPLING_METHOD_FLAG
     $SCHEDULER_FLAG
     $FLOW_SHIFT_FLAG
@@ -471,6 +482,7 @@ CMD=(
     $WIDTH_FLAG
     $HEIGHT_FLAG
     $MAX_VRAM_FLAG
+    $PARAMS_BACKEND_FLAG
     $VERBOSE_FLAG
     $AUTO_FIT_FLAG
     --lora-model-dir "$LORA_DIR"
