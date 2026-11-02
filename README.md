@@ -199,6 +199,15 @@ docker build -t stable-diffusion-cpp.docker .
 docker build --build-arg SDCPP_REF=abc1234 -t stable-diffusion-cpp.docker .
 ```
 
+To build and push to GHCR the same way CI does (resolves upstream `master`
+HEAD, sets the `sd.cpp.revision` label so the CI smart-skip won't overwrite
+the push, tags `latest` + `sha-<short>`), use the provided script after
+`docker login ghcr.io`:
+
+```bash
+./build-and-push.sh
+```
+
 Note: Docker layer caching keys on the `SDCPP_REF` value — rebuilding with the
 same ref reuses the cached upstream source. Pass a fresh SHA (or
 `--no-cache`) to pick up upstream changes locally.

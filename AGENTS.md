@@ -126,6 +126,7 @@ globally — root shells, `docker exec`, sshd sessions):
 │   └── workflows/
 │       └── docker-publish.yml  # CI: build sd.cpp from source & push image to GHCR
 ├── Dockerfile          # Multi-stage: nvidia/cuda:12.8.2-devel builds sd.cpp from source; runtime adds aria2/uv/entrypoint; HEALTHCHECK
+├── build-and-push.sh   # Local build + push to GHCR (mirrors CI: resolves upstream master SHA, sets sd.cpp.revision label)
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models + loras volumes, HF_TOKEN
 ├── docs/
@@ -156,6 +157,9 @@ to the `sd.cpp.revision` label on the published `:latest` image
 the scheduled build is skipped. Push and `workflow_dispatch` events always
 build. When building, the resolved SHA is passed as the `SDCPP_REF` build-arg
 (reproducible, cache-invalidating) and recorded as the `sd.cpp.revision` label.
+
+Locally, `build-and-push.sh` mirrors this flow (SHA resolution, label, `latest`
++ `sha-<short>` tags) so manual pushes don't fight the smart-skip.
 
 ### Build caching
 
