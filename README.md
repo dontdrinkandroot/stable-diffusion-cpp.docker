@@ -49,12 +49,18 @@ Docker Compose reads `.env` automatically; the compose file references it via
 docker compose up -d --build
 ```
 
+The build compiles [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
+from source (CUDA 12.8, `CUDA_ARCHITECTURES=75;80;86;89;90;100;120`) — on a
+typical machine this takes a while. Or pull the pre-built image from GHCR
+(see [Using the pre-built GHCR image](#using-the-pre-built-ghcr-image)).
+
 The first start downloads model files into the `models` named volume.
 Downloads use aria2c with parallel connections and resume support.
 
 ### 4. Use the server
 
-Once running, the sd-server listens on port `1234`. See the
+Once running, the sd-server listens on port `1234` and serves the HTTP APIs
+(`sdcpp`, OpenAI, sdapi — no embedded web UI). See the
 [stable-diffusion.cpp API docs](https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/docker.md)
 for endpoint usage.
 
@@ -169,6 +175,36 @@ Notes:
 - Turbo-style sampling needs 8 steps with CFG disabled (`CFG_SCALE=0`).
 - The Raw GGUF is ~5.5 GB (Q4_K_M); the distill LoRA is ~0.94 GB (rank 128).
 - `HF_TOKEN` is required — the Krea 2 weights are under the Krea 2 Community License.
+
+## Building the image
+
+The image is built from source in a multi-stage `Dockerfile`:
+
+- **Build stage**: `nvidia/cuda:12.8.2-devel-ubuntu24.04`, clones
+  [leejet/stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp)
+  and compiles it (CUDA + dynamic CPU backends).
+- **Runtime stage**: `nvidia/cuda:12.8.2-runtime-ubuntu24.04`, adds aria2,
+  `hf` CLI, and the entrypoint.
+
+Build arguments:
+
+| Build arg | Default | Description |
+|-----------|---------|-------------|
+| `SDCPP_REF` | `master` | Upstream ref to build (branch, tag, or commit SHA). CI pins this to the resolved upstream `master` HEAD SHA. |
+| `CUDA_ARCHITECTURES` | `75;80;86;89;90;100;120` | `CMAKE_CUDA_ARCHITECTURES` value. Includes sm_120 (Blackwell) so SageAttention works on RTX 5090-class GPUs. |
+
+```bash
+docker build -t stable-diffusion-cpp.docker .
+# e.g. pin a specific upstream commit:
+docker build --build-arg SDCPP_REF=abc1234 -t stable-diffusion-cpp.docker .
+```
+
+Note: Docker layer caching keys on the `SDCPP_REF` value — rebuilding with the
+same ref reuses the cached upstream source. Pass a fresh SHA (or
+`--no-cache`) to pick up upstream changes locally.
+
+The web frontend is **not** built (`SD_SERVER_BUILD_FRONTEND=OFF`) — the
+server is API-only.
 
 ## Using the pre-built GHCR image
 

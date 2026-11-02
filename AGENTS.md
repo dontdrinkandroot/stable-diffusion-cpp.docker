@@ -3,9 +3,28 @@
 ## Project Overview
 
 Generic Docker image for running **stable-diffusion.cpp** (CUDA variant).
-Uses the pre-built upstream CUDA image and adds an entrypoint that downloads model weights
-on startup using **aria2c** (URL-based) or **`hf download`** (HuggingFace spec-based).
+stable-diffusion.cpp is **built from source** in a multi-stage Dockerfile
+(`nvidia/cuda:12.8.2-devel` build stage, `nvidia/cuda:12.8.2-runtime` runtime
+stage) so CUDA kernel architectures can be controlled via the
+`CUDA_ARCHITECTURES` build arg (default `75;80;86;89;90;100;120`, including
+sm_120/Blackwell — required for SageAttention on RTX 5090-class GPUs; the
+upstream pre-built image lacks sm_120). The image adds an entrypoint that
+downloads model weights on startup using **aria2c** (URL-based) or
+**`hf download`** (HuggingFace spec-based).
 Models are configured via environment variables — there are no hardcoded defaults.
+
+### Build args
+
+| Build arg | Default | Description |
+|-----------|---------|-------------|
+| `SDCPP_REF` | `master` | Upstream `leejet/stable-diffusion.cpp` ref to build (branch, tag, or SHA). CI resolves `master` HEAD to a SHA and passes it (also recorded as the `sd.cpp.revision` image label). |
+| `CUDA_ARCHITECTURES` | `75;80;86;89;90;100;120` | `CMAKE_CUDA_ARCHITECTURES` for the CUDA kernels. |
+
+The web frontend is **not** built (`-DSD_SERVER_BUILD_FRONTEND=OFF`, no
+Node/pnpm in the build) — sd-server is API-only. The CMake flag set mirrors
+upstream `docker/Dockerfile.cuda` with `GGML_CUDA_ENABLE_DYNAMIC_CPU_BACKENDS=ON`
+(shared libs, `GGML_BACKEND_DL=ON`, `GGML_CPU_ALL_VARIANTS=ON`,
+`GGML_NATIVE=OFF`, rpath `$ORIGIN`).
 
 ## Instructions
 
@@ -14,17 +33,17 @@ Models are configured via environment variables — there are no hardcoded defau
 ## Tool Usage
 
 Use the dedicated tools; the `bash` tool is ONLY for actually executing
-  commands (running `bin/validate-backend`/`bin/validate-frontend`, PHPUnit, PHPStan,
-  `composer`/`pnpm`, `git`, migrations). Never use `bash` for reading, searching, or
-  listing — use the dedicated tools:
+  commands (`docker`/`docker compose` builds, `git`, running scripts such as
+  `entrypoint.sh` with `bash -n` syntax checks). Never use `bash` for reading,
+  searching, or listing — use the dedicated tools:
     - Find files by pattern -> `glob` (never `find` / `ls`)
     - Search file contents -> `grep` (never shell `grep`/`rg`, except `rg -c` for counts)
     - Read a file OR list a directory's entries -> `read` (it accepts directories; never `cat`/`head`/`ls`)
     - Edit files -> `edit` / `write` (never `sed` / `awk` / `echo`)
   For several independent lookups, fire parallel dedicated-tool calls in one message
   instead of chaining shell commands.
-  If the dedicated tools seem stuck (e.g. `glob` finds nothing in an unfamiliar `vendor/`
-  tree), `read` the directory itself or widen the glob — do NOT fall back to `find`/`ls`.
+  If the dedicated tools seem stuck (e.g. `glob` finds nothing in an unfamiliar tree),
+  `read` the directory itself or widen the glob — do NOT fall back to `find`/`ls`.
   If an exploration still cannot be done, ask the user instead of guessing with `bash`.
 
 ## Model Download (aria2c)
@@ -105,8 +124,8 @@ globally — root shells, `docker exec`, sshd sessions):
 .
 ├── .github/
 │   └── workflows/
-│       └── docker-publish.yml  # CI: build & push image to GHCR
-├── Dockerfile          # FROM upstream CUDA image; installs aria2, curl, sshd StrictModes fix + entrypoint; HEALTHCHECK
+│       └── docker-publish.yml  # CI: build sd.cpp from source & push image to GHCR
+├── Dockerfile          # Multi-stage: nvidia/cuda:12.8.2-devel builds sd.cpp from source; runtime adds aria2/uv/entrypoint; HEALTHCHECK
 ├── entrypoint.sh       # Downloads models via aria2c, then execs sd-server
 ├── docker-compose.yml  # Port 1234, GPU, models + loras volumes, HF_TOKEN
 ├── docs/
@@ -121,14 +140,29 @@ The `.github/workflows/docker-publish.yml` workflow builds and pushes the
 image to the GitHub Container Registry (GHCR).
 
 - **Trigger:** push to `main` (when `Dockerfile`, `entrypoint.sh`, or the
-  workflow itself changes), plus manual `workflow_dispatch`.
+  workflow itself changes), plus manual `workflow_dispatch`, plus a **weekly
+  `schedule`** (Monday 03:00 UTC) to pick up upstream `master` changes.
 - **Registry:** `ghcr.io/dontdrinkandroot/stable-diffusion-cpp.docker`
 - **Tags produced:** `latest` and `sha-<short>` (e.g. `sha-ea0fba2`).
-- **Platform:** `linux/amd64` only (upstream CUDA base is amd64; all target
-  hosts are x86_64 NVIDIA GPUs).
+- **Platform:** `linux/amd64` only (all target hosts are x86_64 NVIDIA GPUs).
 - **Auth:** uses the auto-provisioned `GITHUB_TOKEN` with `packages: write`.
-- **No GPU needed for build** — the Dockerfile only installs `aria2` and copies
-  the entrypoint; the CUDA runtime comes from the upstream base image.
+- **No GPU needed for build** — CUDA cross-compilation works without a GPU.
+
+### Smart skip (scheduled runs)
+
+A `check` job resolves upstream `master` HEAD (`git ls-remote`) and compares it
+to the `sd.cpp.revision` label on the published `:latest` image
+(`docker buildx imagetools inspect --format '{{json .Image}}'`). If unchanged,
+the scheduled build is skipped. Push and `workflow_dispatch` events always
+build. When building, the resolved SHA is passed as the `SDCPP_REF` build-arg
+(reproducible, cache-invalidating) and recorded as the `sd.cpp.revision` label.
+
+### Build caching
+
+The workflow uses the GHA cache backend (`cache-from/to: type=gha`) — the
+CUDA compile step (~1-2 h cold on `ubuntu-latest`, 7 architectures + all CPU
+kernel variants) is cached across runs; only upstream source changes force a
+recompile.
 
 ### Image retention (automatic cleanup)
 
@@ -304,8 +338,6 @@ confirming `sshd -T` reports `strictmodes no`.
 ### Upstream stable-diffusion.cpp
 
 - Repository: https://github.com/leejet/stable-diffusion.cpp
-- CUDA Docker image (pre-built): `ghcr.io/leejet/stable-diffusion.cpp:master-cuda`
-- All pre-built images: https://github.com/leejet/stable-diffusion.cpp/pkgs/container/stable-diffusion.cpp
 - Build docs: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/build.md
 - Docker docs: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/docker.md
 - MiniMax-H3 guide: https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/minimax_h3.md
@@ -316,6 +348,13 @@ confirming `sshd -T` reports `strictmodes no`.
 
 - CPU: https://github.com/leejet/stable-diffusion.cpp/blob/master/docker/Dockerfile
 - CUDA: https://github.com/leejet/stable-diffusion.cpp/blob/master/docker/Dockerfile.cuda
+  (our Dockerfile mirrors its build flags; the flag set in this repo's
+  Dockerfile must be kept in sync with it)
+
+The upstream pre-built images (`ghcr.io/leejet/stable-diffusion.cpp:master-cuda`)
+are **no longer used** — we build from source so we control
+`CMAKE_CUDA_ARCHITECTURES` (the upstream pre-built image lacks sm_120, so
+SageAttention was unavailable on RTX 5090 / Blackwell GPUs).
 
 ### Model Downloads (HuggingFace)
 
